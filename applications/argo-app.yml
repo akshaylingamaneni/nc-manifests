@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/akshaylingamaneni/nc-manifests.git'
+    targetRevision: main
+    path: NC-MANIFESTS/argo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd   # argo ingress points to argocd services
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra
+  namespace: argocd   # Application object lives in argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/akshaylingamaneni/nc-manifests.git'
+    targetRevision: main
+    path: NC-MANIFESTS/infra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infra   # resources applied here
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

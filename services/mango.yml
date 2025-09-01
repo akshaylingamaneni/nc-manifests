@@ -13,6 +13,8 @@ spec:
       labels:
         app: mango
     spec:
+      imagePullSecrets:
+        - name: ghcr-creds
       containers:
         - name: mango
           image: ghcr.io/akshaylingamaneni/mango:latest

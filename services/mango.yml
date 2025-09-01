@@ -23,13 +23,16 @@ spec:
           envFrom:
             - secretRef:
                 name: mango-secrets
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=75"
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "1000m"
+              memory: "8Gi"
+              cpu: "3000m"
             limits:
-              memory: "2Gi"
-              cpu: "2000m"
+              memory: "8Gi"
+              cpu: "3000m"
           readinessProbe:
             tcpSocket: { port: 8080 }
             initialDelaySeconds: 10

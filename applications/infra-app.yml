@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/akshaylingamaneni/nc-manifests.git'
     targetRevision: main
-    path: NC-MANIFESTS/infra
+    path: infra
   destination:
     server: https://kubernetes.default.svc
     namespace: infra   # resources applied here

@@ -16,3 +16,13 @@ spec:
                 name: mango
                 port:
                   number: 8080
+    - host: uio-mcp.neurocollab.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: uio-mcp-gateway
+                port:
+                  number: 3002

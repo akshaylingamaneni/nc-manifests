@@ -4,10 +4,10 @@ metadata:
   name: minio-pvc
   namespace: services
 spec:
-  accessModes: [ "ReadWriteOnce" ]
+  accessModes: ["ReadWriteOnce"]
   resources:
     requests:
-      storage: 250Gi
+      storage: 20Gi
   storageClassName: microk8s-hostpath
 ---
 apiVersion: apps/v1
@@ -29,37 +29,25 @@ spec:
         - name: minio
           image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
           args: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
-
           ports:
             - containerPort: 9000
             - containerPort: 9001
-          envFrom:
-            - secretRef:
-                name: minio-secrets
-          resources:
-            requests:
-              memory: "1Gi"
-              cpu: "500m"
-            limits:
-              memory: "3Gi"
-              cpu: "2000m"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secrets
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secrets
+                  key: MINIO_ROOT_PASSWORD
           volumeMounts:
-            - name: minio-data
+            - name: data
               mountPath: /data
-          readinessProbe:
-            httpGet:
-              path: /minio/health/ready
-              port: 9000
-            initialDelaySeconds: 20
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /minio/health/live
-              port: 9000
-            initialDelaySeconds: 60
-            periodSeconds: 30
       volumes:
-        - name: minio-data
+        - name: data
           persistentVolumeClaim:
             claimName: minio-pvc
 ---
@@ -68,15 +56,13 @@ kind: Service
 metadata:
   name: minio
   namespace: services
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
-    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
 spec:
   selector:
     app: minio
   ports:
-    - name: http
+    - name: api
       port: 9000
+      targetPort: 9000
     - name: console
       port: 9001
+      targetPort: 9001

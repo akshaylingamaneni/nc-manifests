@@ -9,9 +9,11 @@ spec:
     repoURL: 'https://github.com/akshaylingamaneni/nc-manifests.git'
     targetRevision: main
     path: infra
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: infra   # resources applied here
+    namespace: infra
   syncPolicy:
     automated:
       prune: true

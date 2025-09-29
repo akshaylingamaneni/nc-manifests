@@ -7,7 +7,7 @@ spec:
   accessModes: ["ReadWriteOnce"]
   resources:
     requests:
-      storage: 20Gi
+      storage: 25Gi
   storageClassName: microk8s-hostpath
 ---
 apiVersion: apps/v1

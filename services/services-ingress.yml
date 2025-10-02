@@ -3,8 +3,14 @@ kind: Ingress
 metadata:
   name: services-ingress
   namespace: services
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
   ingressClassName: nginx
+  tls:
+  - hosts:
+    - minio.neurocollab.in
+    secretName: minio-tls
   rules:
     - host: mango.neurocollab.in
       http:

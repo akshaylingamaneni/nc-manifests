@@ -3,14 +3,8 @@ kind: Ingress
 metadata:
   name: services-ingress
   namespace: services
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
   ingressClassName: nginx
-  tls:
-  - hosts:
-    - minio.neurocollab.in
-    secretName: minio-tls
   rules:
     - host: mango.neurocollab.in
       http:
@@ -32,13 +26,3 @@ spec:
                 name: uio-mcp-gateway
                 port:
                   number: 3002
-    - host: minio.neurocollab.in
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: minio
-                port:
-                  number: 9001

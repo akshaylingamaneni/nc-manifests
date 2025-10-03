@@ -42,7 +42,7 @@ spec:
             - sh
             - -c
             - |
-              sed "s/VPS_IP_PLACEHOLDER/$VPS_IP/g; s/TOKEN_PLACEHOLDER/$FRP_TOKEN/g" /tmp/frpc.toml > /config/frpc.toml
+              sed "s|VPS_IP_PLACEHOLDER|$VPS_IP|g; s|TOKEN_PLACEHOLDER|$FRP_TOKEN|g" /tmp/frpc.toml > /config/frpc.toml
           env:
             - name: VPS_IP
               valueFrom:

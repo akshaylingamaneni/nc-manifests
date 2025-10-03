@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frpc-config
+  namespace: services
+data:
+  frpc.toml: |
+    [common]
+    server_addr = "VPS_IP_PLACEHOLDER"
+    server_port = 7000
+
+    [auth]
+    method = "token"
+    token = "TOKEN_PLACEHOLDER"
+
+    [[proxies]]
+    name = "minio-s3"
+    type = "tcp"
+    local_ip = "minio.services.svc.cluster.local"
+    local_port = 9000
+    remote_port = 443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frpc
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frpc
+  template:
+    metadata:
+      labels:
+        app: frpc
+    spec:
+      initContainers:
+        - name: config-setup
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              sed "s/VPS_IP_PLACEHOLDER/$VPS_IP/g; s/TOKEN_PLACEHOLDER/$FRP_TOKEN/g" /tmp/frpc.toml > /config/frpc.toml
+          env:
+            - name: VPS_IP
+              valueFrom:
+                secretKeyRef:
+                  name: frpc-secrets
+                  key: VPS_IP
+            - name: FRP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: frpc-secrets
+                  key: FRP_TOKEN
+          volumeMounts:
+            - name: base-config
+              mountPath: /tmp
+            - name: final-config
+              mountPath: /config
+      containers:
+        - name: frpc
+          image: fatedier/frpc:v0.60.0
+          args: ["-c", "/etc/frp/frpc.toml"]
+          volumeMounts:
+            - name: final-config
+              mountPath: /etc/frp
+      volumes:
+        - name: base-config
+          configMap:
+            name: frpc-config
+        - name: final-config
+          emptyDir: {}
+

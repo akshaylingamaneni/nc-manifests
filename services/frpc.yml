@@ -5,10 +5,8 @@ metadata:
   namespace: services
 data:
   frpc.toml: |
-    [common]
-    server_addr = "VPS_IP_PLACEHOLDER"
-    server_port = 7000
-
+    serverAddr = "VPS_IP_PLACEHOLDER"
+    serverPort = 7000
     [auth]
     method = "token"
     token = "TOKEN_PLACEHOLDER"
@@ -16,9 +14,9 @@ data:
     [[proxies]]
     name = "https-ingress"
     type = "tcp"
-    local_ip = "nginx-ingress-microk8s-controller.ingress.svc.cluster.local"
-    local_port = 443
-    remote_port = 443
+    localIP = "nginx-ingress-microk8s-controller.ingress.svc.cluster.local"
+    localPort = 443
+    remotePort = 443
 ---
 apiVersion: apps/v1
 kind: Deployment

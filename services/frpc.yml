@@ -14,10 +14,10 @@ data:
     token = "TOKEN_PLACEHOLDER"
 
     [[proxies]]
-    name = "minio-s3"
+    name = "https-ingress"
     type = "tcp"
-    local_ip = "minio.services.svc.cluster.local"
-    local_port = 9000
+    local_ip = "nginx-ingress-microk8s-controller.ingress.svc.cluster.local"
+    local_port = 443
     remote_port = 443
 ---
 apiVersion: apps/v1

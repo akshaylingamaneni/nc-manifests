@@ -16,6 +16,13 @@ data:
     localIP = "nginx-ingress-microk8s-controller.ingress.svc.cluster.local"
     localPort = 443
     remotePort = 443
+
+    [[proxies]]
+    name = "minio-s3-api"
+    type = "tcp"
+    localIP = "minio.services.svc.cluster.local"
+    localPort = 9000
+    remotePort = 9000
 ---
 apiVersion: apps/v1
 kind: Deployment

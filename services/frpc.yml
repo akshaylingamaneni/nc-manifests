@@ -39,12 +39,14 @@ spec:
             - sh
             - -c
             - |
+              echo "=== Environment Variables ==="
+              echo "VPS_IP: $VPS_IP"
+              echo "FRP_TOKEN length: ${#FRP_TOKEN}"
+              echo "=== Template before replacement ==="
+              cat /tmp/frpc.toml
+              echo "=== Performing replacement ==="
               sed "s|VPS_IP_PLACEHOLDER|$VPS_IP|g; s|TOKEN_PLACEHOLDER|$FRP_TOKEN|g" /tmp/frpc.toml > /config/frpc.toml
-              echo "=== Line count ==="
-              wc -l /config/frpc.toml
-              echo "=== First 5 lines ==="
-              head -5 /config/frpc.toml
-              echo "=== Full config ==="
+              echo "=== Final config ==="
               cat /config/frpc.toml
           env:
             - name: VPS_IP

@@ -9,7 +9,7 @@ data:
     serverPort = 7000
     auth.method = "token"
     auth.token = "TOKEN_PLACEHOLDER"
-    transport.protocol = "kcp"
+    transport.protocol = "quic"
     transport.poolCount = 5
 
     [[proxies]]

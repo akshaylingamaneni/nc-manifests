@@ -7903,7 +7903,7 @@ spec:
         env:
         - name: ENABLE_WEBHOOKS
           value: "false"
-        image: ghcr.io/seaweedfs/seaweedfs-operator:v1.0.4
+        image: ghcr.io/seaweedfs/seaweedfs-operator:1.0.5
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

@@ -20,7 +20,7 @@ spec:
   master:
     replicas: 3
     volumePreallocate: true
-    volumeSizeLimitMB: 65536
+    volumeSizeLimitMB: 29999
     defaultReplication: "010"
     resources:
       requests:
@@ -33,9 +33,9 @@ spec:
     replicas: 3
     storageClassName: microk8s-hostpath
     requests:
-      storage: 25Gi
+      storage: 70Gi
     compactionMBps: 64
-    maxVolumeCounts: 256
+    maxVolumeCounts: 2
     rack: "rack1"
     dataCenter: "dc1"
     resources:

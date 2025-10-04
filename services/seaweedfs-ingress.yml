@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: minio-ingress
+  name: seaweedfs-ingress
   namespace: services
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
@@ -10,18 +10,17 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - minio.neurocollab.in
-    secretName: minio-tls
+    - hosts:
+        - s3.neurocollab.in
+      secretName: s3-tls
   rules:
-    - host: minio.neurocollab.in
+    - host: s3.neurocollab.in
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: minio
+                name: seaweedfs-filer
                 port:
-                  number: 9001
-
+                  number: 8888

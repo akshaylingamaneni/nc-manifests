@@ -1,16 +1,16 @@
-# FRP Tunnel Setup for MinIO
+# FRP Tunnel Setup for SeaweedFS
 
-This setup uses your VPS with a static IP as a stable tunnel endpoint for MinIO service.
+This setup uses your VPS with a static IP as a stable tunnel endpoint for the SeaweedFS service.
 
 ## Architecture
 
 ```
-Internet → VPS:443 (frps server)
-              ↑ (tunnel via port 7000)
-         Cluster (frpc client) → MinIO:9000
+Internet → VPS:9000 (frps server listener for S3 traffic)
+              ↑ (control tunnel via port 7000)
+         Cluster (frpc client) → SeaweedFS S3:8333
 ```
 
-MinIO's S3 API (port 9000) is tunneled to port 443 on your VPS.
+SeaweedFS's S3 API (port 8333 inside the cluster) is forwarded to TCP/9000 on your VPS for a single-hop TCP path—no HTTP ingress or additional proxies in the middle. Keep any other FRP listeners (for example the shared HTTPS tunnel on 443) open as before; the S3 gateway now has its own dedicated port for maximum throughput.
 
 ## VPS Setup (One-time, Manual)
 
@@ -78,8 +78,8 @@ sudo systemctl status frps
 # Allow FRP control port
 sudo ufw allow 7000/tcp
 
-# Allow HTTPS port for MinIO
-sudo ufw allow 443/tcp
+# Allow S3 ingress for SeaweedFS
+sudo ufw allow 9000/tcp
 ```
 
 ## Cluster Setup (GitOps)
@@ -98,14 +98,35 @@ In your Infisical dashboard:
 
 The GitOps will automatically deploy:
 - `frpc-secrets-infisical.yml` - Pulls secrets from Infisical
-- `frpc.yml` - FRP client that tunnels MinIO
+- `frpc.yml` - FRP client that tunnels SeaweedFS directly to the filer S3 port (`seaweedfs-filer.services.svc.cluster.local:8333`) to avoid layered TCP proxies.
+
+### 3. Configure SeaweedFS S3 identities
+
+Under the Infisical path `/seaweedfs` add:
+- `seaweedfs_s3_config.json` – full IAM payload (see example below).
+- Any client-facing keys you want to reuse elsewhere (e.g., `S3_ACCESS_KEY`, `S3_SECRET_KEY`).
+
+Example payload for `seaweedfs_s3_config.json`:
+
+```json
+{
+  "identities": [
+    {
+      "name": "root",
+      "accessKey": "YOUR_ACCESS_KEY",
+      "secretKey": "YOUR_SECRET_KEY",
+      "actions": ["Admin"]
+    }
+  ]
+}
+```
 
 ## DNS Setup
 
-Point your MinIO domain to your VPS IP:
+Point your SeaweedFS domain to your VPS IP:
 
 ```
-minio.neurocollab.in → YOUR_VPS_IP
+s3.neurocollab.in → YOUR_VPS_IP
 ```
 
 ## Testing
@@ -120,13 +141,15 @@ sudo journalctl -u frps -f
 kubectl logs -n services -l app=frpc -f
 ```
 
-### Test MinIO access:
+### Test SeaweedFS access:
 ```bash
-# S3 API on port 443
-curl http://YOUR_VPS_IP:443
+# S3 API on port 9000 (forwarded directly from the cluster's filer gateway)
+curl http://YOUR_VPS_IP:9000
+# or via DNS once the record exists
+curl http://s3.neurocollab.in:9000
 
 # Or configure S3 client
-aws s3 ls --endpoint-url http://YOUR_VPS_IP:443
+aws s3 ls --endpoint-url http://s3.neurocollab.in:9000
 ```
 
 ## Benefits
@@ -145,11 +168,10 @@ aws s3 ls --endpoint-url http://YOUR_VPS_IP:443
 - Verify token matches on both sides
 
 ### Tunnel connects but no traffic
-- Check MinIO service is running: `kubectl get svc -n services minio`
+- Check SeaweedFS filer service is running: `kubectl get svc -n services seaweedfs-filer`
 - Verify local_ip in frpc config matches service name
 - Check frps logs for proxy creation
 
 ### High latency
 - Ensure VPS has good network connectivity
 - Consider moving VPS closer to your cluster region
-

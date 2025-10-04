@@ -8,7 +8,7 @@ This document describes the setup of cert-manager v1.18.2 with DNS-01 challenge 
 
 **Problem**: Cloudflare limits file uploads to 100MB for proxied domains.
 
-**Solution**: Bypass Cloudflare proxy for services like MinIO that need large file uploads, but still need valid HTTPS certificates.
+**Solution**: Bypass Cloudflare proxy for services like SeaweedFS that need large file uploads, but still need valid HTTPS certificates.
 
 **Challenge**: With Cloudflare Tunnel, Let's Encrypt's HTTP-01 challenge doesn't work (no direct HTTP access to the cluster).
 
@@ -22,14 +22,14 @@ This document describes the setup of cert-manager v1.18.2 with DNS-01 challenge 
 ┌─────────────────────────────────────────────────────────────┐
 │                    Cloudflare DNS                            │
 │  - ArgoCD, K8s Dashboard, Mango, UIO MCP (Orange Cloud)     │
-│  - MinIO (Grey Cloud - DNS Only)                            │
+│  - SeaweedFS (Grey Cloud - DNS Only)                        │
 └─────────────────────────────────────────────────────────────┘
                               │
                     ┌─────────┴──────────┐
                     │                    │
           ┌─────────▼──────┐   ┌────────▼────────┐
           │ Cloudflare     │   │  Direct Access  │
-          │ Tunnel         │   │  (MinIO only)   │
+          │ Tunnel         │   │  (SeaweedFS only) │
           │ (Port 80/443)  │   │                 │
           └─────────┬──────┘   └────────┬────────┘
                     │                    │
@@ -46,7 +46,7 @@ This document describes the setup of cert-manager v1.18.2 with DNS-01 challenge 
                     │  - K8s Dashboard   │
                     │  - Mango           │
                     │  - UIO MCP         │
-                    │  - MinIO ✓ (cert)  │
+                    │  - SeaweedFS ✓ (cert) │
                     └────────────────────┘
 ```
 
@@ -108,55 +108,37 @@ spec:
 - **staging**: For testing (fake certs, no rate limits)
 - **prod**: For production (real certs, rate limited to 50/week)
 
-### 3. Update Services Ingress for TLS
+### 3. SeaweedFS Ingress with TLS
 
-Updated `services/services-ingress.yml` to add TLS for MinIO only:
+`services/seaweedfs-ingress.yml` issues a dedicated TLS certificate for the SeaweedFS S3 console (Filer UI):
 
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: services-ingress
+  name: seaweedfs-ingress
   namespace: services
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - minio.neurocollab.in
-    secretName: minio-tls
+    - hosts:
+        - s3.neurocollab.in
+      secretName: s3-tls
   rules:
-    - host: mango.neurocollab.in
+    - host: s3.neurocollab.in
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: mango
+                name: seaweedfs-filer
                 port:
-                  number: 8080
-    - host: uio-mcp.neurocollab.in
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: uio-mcp-gateway
-                port:
-                  number: 3002
-    - host: minio.neurocollab.in
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: minio
-                port:
-                  number: 9001
+                  number: 8888
 ```
 
 ### 4. Create Cloudflare API Token
@@ -254,14 +236,14 @@ kubectl get certificate -n services
 
 Expected output when ready:
 ```
-NAME        READY   SECRET      AGE
-minio-tls   True    minio-tls   5m
+NAME            READY   SECRET          AGE
+s3-tls   True    s3-tls   5m
 ```
 
 ### Describe Certificate
 
 ```bash
-kubectl describe certificate minio-tls -n services
+kubectl describe certificate s3-tls -n services
 ```
 
 Look for:
@@ -276,13 +258,13 @@ Status:
 ### Check Certificate Details
 
 ```bash
-kubectl get secret minio-tls -n services -o yaml
+kubectl get secret s3-tls -n services -o yaml
 ```
 
 ### View Certificate Expiry
 
 ```bash
-kubectl get certificate minio-tls -n services -o jsonpath='{.status.notAfter}'
+kubectl get certificate s3-tls -n services -o jsonpath='{.status.notAfter}'
 ```
 
 ---
@@ -319,7 +301,7 @@ kubectl describe challenge -n services <challenge-name>
 If certificate is stuck:
 
 ```bash
-kubectl delete certificate minio-tls -n services
+kubectl delete certificate s3-tls -n services
 kubectl delete challenge --all -n services
 ```
 
@@ -339,13 +321,13 @@ kubectl logs -n cert-manager deployment/cert-manager -f
 
 | Domain | Type | Content | Proxy Status | Purpose |
 |--------|------|---------|--------------|---------|
-| `minio.neurocollab.in` | A/CNAME | Cluster IP | **Grey Cloud (DNS Only)** | Direct access, bypasses 100MB limit |
+| `s3.neurocollab.in` | A/CNAME | Cluster IP | **Grey Cloud (DNS Only)** | Direct access, bypasses 100MB limit |
 | `mango.neurocollab.in` | A/CNAME | Cluster IP | Orange Cloud (Proxied) | Protected by Cloudflare |
 | `uio-mcp.neurocollab.in` | A/CNAME | Cluster IP | Orange Cloud (Proxied) | Protected by Cloudflare |
 | `argocd.neurocollab.in` | A/CNAME | Cluster IP | Orange Cloud (Proxied) | Protected by Cloudflare |
 | `k8dashboard.neurocollab.in` | A/CNAME | Cluster IP | Orange Cloud (Proxied) | Protected by Cloudflare |
 
-**Important**: MinIO **must** be grey cloud (DNS only) even though we're using Cloudflare Tunnel for initial connection setup.
+**Important**: SeaweedFS **must** be grey cloud (DNS only) even though we're using Cloudflare Tunnel for initial connection setup.
 
 ### Cloudflare Tunnel Configuration
 
@@ -361,7 +343,7 @@ ingress:
     service: http://localhost:80
   - hostname: uio-mcp.neurocollab.in
     service: http://localhost:80
-  - hostname: minio.neurocollab.in
+  - hostname: s3.neurocollab.in
     service: http://localhost:80
     originRequest:
       disableChunkedEncoding: true
@@ -378,12 +360,12 @@ Certificates auto-renew **30 days before expiration**.
 
 **Check renewal time:**
 ```bash
-kubectl get certificate minio-tls -n services -o jsonpath='{.status.renewalTime}'
+kubectl get certificate s3-tls -n services -o jsonpath='{.status.renewalTime}'
 ```
 
 **Force renewal:**
 ```bash
-kubectl delete certificate minio-tls -n services
+kubectl delete certificate s3-tls -n services
 ```
 
 ### Updating cert-manager
@@ -436,7 +418,7 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 ### Modified Files
 
 1. **`services/services-ingress.yml`**
-   - Added TLS configuration for MinIO
+   - Added TLS configuration for SeaweedFS
    - Added cert-manager annotation
 
 ---
@@ -493,13 +475,13 @@ kubectl get challenge -A
 kubectl logs -n cert-manager deployment/cert-manager -f
 
 # Describe certificate
-kubectl describe certificate minio-tls -n services
+kubectl describe certificate s3-tls -n services
 
 # View certificate secret
-kubectl get secret minio-tls -n services -o yaml
+kubectl get secret s3-tls -n services -o yaml
 
 # Delete and recreate certificate
-kubectl delete certificate minio-tls -n services
+kubectl delete certificate s3-tls -n services
 
 # Check ClusterIssuer configuration
 kubectl get clusterissuer letsencrypt-prod -o yaml
@@ -521,7 +503,7 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 ✅ No pending challenges  
 ✅ Certificate expires in ~90 days  
 ✅ Auto-renewal configured  
-✅ MinIO accessible via HTTPS with valid certificate  
+✅ SeaweedFS accessible via HTTPS with valid certificate  
 ✅ Large file uploads working (>100MB)  
 
 ---
@@ -539,6 +521,3 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 **Last Updated**: October 2, 2025  
 **Author**: Setup completed with AI assistance  
 **Environment**: MicroK8s on neurocollab.in
-
-
-

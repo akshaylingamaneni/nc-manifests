@@ -18,10 +18,10 @@ data:
     remotePort = 443
 
     [[proxies]]
-    name = "minio-s3-api"
+    name = "seaweedfs-s3-api"
     type = "tcp"
-    localIP = "minio.services.svc.cluster.local"
-    localPort = 9000
+    localIP = "seaweedfs-filer.services.svc.cluster.local"
+    localPort = 8333
     remotePort = 9000
 ---
 apiVersion: apps/v1
@@ -84,4 +84,3 @@ spec:
             name: frpc-config
         - name: final-config
           emptyDir: {}
-

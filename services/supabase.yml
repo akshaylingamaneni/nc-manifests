@@ -510,16 +510,20 @@ spec:
           env:
             - name: SUPABASE_URL
               value: https://supabase-studio.neurocollab.in
+            - name: STUDIO_DEFAULT_PROJECT
+              value: default
+            - name: DEFAULT_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_URL
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: supabase-secrets
                   key: SUPABASE_DB_URL
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_PASSWORD
+            - name: STUDIO_PG_META_URL
+              value: http://supabase-meta.services.svc.cluster.local:8080
             - name: SUPABASE_ANON_KEY
               valueFrom:
                 secretKeyRef:
@@ -530,13 +534,6 @@ spec:
                 secretKeyRef:
                   name: supabase-secrets
                   key: SUPABASE_SERVICE_ROLE_KEY
-            - name: STUDIO_PG_META_URL
-              value: http://supabase-meta.services.svc.cluster.local:8080
-            - name: POSTGRES_CONNECTION_STRING
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_URL
             - name: SUPABASE_PUBLIC_URL
               value: https://supabase-studio.neurocollab.in
           ports:

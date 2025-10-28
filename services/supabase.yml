@@ -496,7 +496,7 @@ spec:
           image: supabase/studio:latest
           env:
             - name: SUPABASE_URL
-              value: https://supabase.neurocollab.in
+              value: https://supabase-studio.neurocollab.in
             - name: SUPABASE_ANON_KEY
               valueFrom:
                 secretKeyRef:

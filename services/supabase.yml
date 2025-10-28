@@ -496,7 +496,7 @@ spec:
           image: supabase/studio:latest
           env:
             - name: SUPABASE_URL
-              value: http://supabase-rest.services.svc.cluster.local:3000
+              value: https://supabase-studio.neurocollab.in
             - name: STUDIO_DEFAULT_ORGANIZATION
               value: default
             - name: STUDIO_DEFAULT_PROJECT

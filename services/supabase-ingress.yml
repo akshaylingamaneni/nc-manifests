@@ -18,13 +18,13 @@ spec:
     - host: supabase-studio.neurocollab.in
       http:
         paths:
-          # - path: /rest/v1
-          #   pathType: Prefix
-          #   backend:
-          #     service:
-          #       name: supabase-rest
-          #       port:
-          #         number: 3000
+          - path: /rest/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: supabase-rest
+                port:
+                  number: 3000
           - path: /
             pathType: Prefix
             backend:

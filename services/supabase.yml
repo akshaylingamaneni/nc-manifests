@@ -142,6 +142,39 @@ spec:
       labels:
         app: supabase-auth
     spec:
+      initContainers:
+        - name: init-auth-db
+          image: postgres:17
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_PASSWORD
+          command: ["sh","-lc"]
+          args:
+            - |
+              until pg_isready -h supabase-db.services.svc.cluster.local -U postgres -d postgres; do
+                echo "waiting for postgres..."; sleep 2; done;
+              psql "postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres" -v ON_ERROR_STOP=1 <<'SQL'
+              CREATE SCHEMA IF NOT EXISTS auth;
+              CREATE SCHEMA IF NOT EXISTS graphql_public;
+              CREATE SCHEMA IF NOT EXISTS storage;
+              CREATE EXTENSION IF NOT EXISTS pgcrypto;
+              CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+              DO $$
+              BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+                  CREATE ROLE anon NOLOGIN;
+                END IF;
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+                  CREATE ROLE authenticated NOLOGIN;
+                END IF;
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+                  CREATE ROLE service_role NOLOGIN;
+                END IF;
+              END$$;
+              SQL
       containers:
         - name: gotrue
           image: supabase/gotrue:v2.181.0-rc.15

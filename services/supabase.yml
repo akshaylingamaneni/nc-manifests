@@ -497,6 +497,16 @@ spec:
           env:
             - name: SUPABASE_URL
               value: https://supabase-studio.neurocollab.in
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_PASSWORD
+            - name: DEFAULT_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_URL
             - name: STUDIO_DEFAULT_ORGANIZATION
               value: default
             - name: STUDIO_DEFAULT_PROJECT

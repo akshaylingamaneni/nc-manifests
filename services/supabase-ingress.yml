@@ -25,6 +25,13 @@ spec:
                 name: supabase-rest
                 port:
                   number: 3000
+          - path: /api/platform/pg-meta
+            pathType: Prefix
+            backend:
+              service:
+                name: supabase-meta
+                port:
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:

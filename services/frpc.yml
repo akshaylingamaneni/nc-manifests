@@ -25,6 +25,15 @@ data:
     localIP = "seaweedfs-filer.services.svc.cluster.local"
     localPort = 8333
     remotePort = 9000
+
+    [[proxies]]
+    name = "supabase-postgres"
+    type = "tcp"
+    # K8s ClusterIP service for Postgres
+    localIP = "supabase-db.services.svc.cluster.local"
+    localPort = 5432
+    # Public port on the FRP server (change as needed, avoid conflicts)
+    remotePort = 15432
 ---
 apiVersion: apps/v1
 kind: Deployment

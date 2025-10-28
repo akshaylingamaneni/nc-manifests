@@ -1,0 +1,566 @@
+## Supabase core services on Kubernetes (namespace: services)
+##
+## Required Kube Secret (managed by Infisical as supabase-secrets):
+## - SUPABASE_DB_PASSWORD          # Postgres password for user postgres
+## - SUPABASE_DB_URL               # e.g. postgresql://postgres:<pass>@supabase-db.services.svc.cluster.local:5432/postgres
+## - SUPABASE_JWT_SECRET           # JWT secret used by auth/realtime/postgrest
+## - SUPABASE_ANON_KEY             # Anon JWT used by clients (generated with SUPABASE_JWT_SECRET)
+## - SUPABASE_SERVICE_ROLE_KEY     # Service role JWT (generated with SUPABASE_JWT_SECRET)
+## - REALTIME_SECRET_KEY_BASE      # 64+ char Phoenix SECRET_KEY_BASE for realtime
+##
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: supabase-db-pvc
+  namespace: services
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: supabase-kong-config
+  namespace: services
+data:
+  # Declarative Kong config to route Supabase subpaths to component services
+  kong.yml: |-
+    _format_version: "3.0"
+    services:
+    - name: auth
+      url: http://supabase-auth.services.svc.cluster.local:9999
+      routes:
+      - name: auth
+        strip_path: false
+        paths:
+        - /auth/v1
+    - name: rest
+      url: http://supabase-rest.services.svc.cluster.local:3000
+      routes:
+      - name: rest
+        strip_path: false
+        paths:
+        - /rest/v1
+    - name: realtime
+      url: http://supabase-realtime.services.svc.cluster.local:4000
+      routes:
+      - name: realtime
+        strip_path: false
+        paths:
+        - /realtime/v1
+    # Storage disabled for now
+    # - name: storage
+    #   url: http://supabase-storage.services.svc.cluster.local:5000
+    #   routes:
+    #   - name: storage
+    #     strip_path: false
+    #     paths:
+    #     - /storage/v1
+    # Add edge functions routing later if/when edge runtime is deployed
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-db
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-db
+  template:
+    metadata:
+      labels:
+        app: supabase-db
+    spec:
+      containers:
+        - name: db
+          image: supabase/postgres:17.6.1.029
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_DB
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_PASSWORD
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "8Gi"
+              cpu: "4000m"
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U postgres -d postgres -h 127.0.0.1"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U postgres -d postgres -h 127.0.0.1"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: supabase-db-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: supabase-db-data
+          persistentVolumeClaim:
+            claimName: supabase-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-db
+  namespace: services
+spec:
+  selector:
+    app: supabase-db
+  ports:
+    - name: pg
+      port: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-auth
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-auth
+  template:
+    metadata:
+      labels:
+        app: supabase-auth
+    spec:
+      containers:
+        - name: gotrue
+          image: supabase/gotrue:latest
+          env:
+            - name: GOTRUE_API_HOST
+              value: 0.0.0.0
+            - name: GOTRUE_API_PORT
+              value: "9999"
+            # Domain where users will be redirected after auth flows
+            - name: GOTRUE_SITE_URL
+              value: https://supabase.neurocollab.in
+            # External URL for the auth API (Kong route)
+            - name: API_EXTERNAL_URL
+              value: https://supabase.neurocollab.in/auth/v1
+            - name: GOTRUE_DB_DRIVER
+              value: postgres
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_URL
+            - name: GOTRUE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_JWT_SECRET
+            - name: GOTRUE_JWT_DEFAULT_GROUP_NAME
+              value: authenticated
+            - name: GOTRUE_DISABLE_SIGNUP
+              value: "false"
+            # Autoconfirm disables email confirmations. Set to "false" when SMTP is configured.
+            - name: GOTRUE_MAILER_AUTOCONFIRM
+              value: "true"
+          ports:
+            - containerPort: 9999
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-auth
+  namespace: services
+spec:
+  selector:
+    app: supabase-auth
+  ports:
+    - name: http
+      port: 9999
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-rest
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-rest
+  template:
+    metadata:
+      labels:
+        app: supabase-rest
+    spec:
+      containers:
+        - name: postgrest
+          image: supabase/postgrest:latest
+          env:
+            - name: PGRST_DB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_URL
+            - name: PGRST_DB_ANON_ROLE
+              value: anon
+            - name: PGRST_DB_SCHEMA
+              value: public,storage,graphql_public
+            - name: PGRST_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_JWT_SECRET
+            - name: PGRST_LOG_LEVEL
+              value: info
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-rest
+  namespace: services
+spec:
+  selector:
+    app: supabase-rest
+  ports:
+    - name: http
+      port: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-realtime
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-realtime
+  template:
+    metadata:
+      labels:
+        app: supabase-realtime
+    spec:
+      containers:
+        - name: realtime
+          image: supabase/realtime:latest
+          env:
+            - name: DB_HOST
+              value: supabase-db
+            - name: DB_NAME
+              value: postgres
+            - name: DB_USER
+              value: postgres
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_PASSWORD
+            - name: PORT
+              value: "4000"
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: REALTIME_SECRET_KEY_BASE
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_JWT_SECRET
+          ports:
+            - containerPort: 4000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-realtime
+  namespace: services
+spec:
+  selector:
+    app: supabase-realtime
+  ports:
+    - name: http
+      port: 4000
+---
+##
+## Supabase Storage (disabled) — commented out to focus elsewhere.
+## To re-enable, uncomment this block and the Kong route for /storage/v1.
+##
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: supabase-storage
+#   namespace: services
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: supabase-storage
+#   template:
+#     metadata:
+#       labels:
+#         app: supabase-storage
+#     spec:
+#       containers:
+#         - name: storage
+#           image: supabase/storage-api:latest
+#           env:
+#             - name: ANON_KEY
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_ANON_KEY
+#             - name: SERVICE_ROLE_KEY
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_SERVICE_ROLE_KEY
+#             - name: JWT_SECRET
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_JWT_SECRET
+#             - name: POSTGREST_URL
+#               value: http://supabase-rest.services.svc.cluster.local:3000
+#             - name: DATABASE_URL
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_DB_URL
+#             - name: FILE_SIZE_LIMIT
+#               value: "52428800"
+#             - name: STORAGE_BACKEND
+#               value: s3
+#             - name: S3_ENDPOINT
+#               value: https://s3.neurocollab.in
+#             - name: S3_REGION
+#               value: local
+#             - name: S3_FORCE_PATH_STYLE
+#               value: "true"
+#             - name: S3_BUCKET
+#               value: supabase
+#             - name: S3_ACCESS_KEY_ID
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: S3_ACCESS_KEY_ID
+#             - name: S3_SECRET_ACCESS_KEY
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: S3_SECRET_ACCESS_KEY
+#           ports:
+#             - containerPort: 5000
+#           resources:
+#             requests:
+#               memory: "256Mi"
+#               cpu: "200m"
+#             limits:
+#               memory: "512Mi"
+#               cpu: "500m"
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: supabase-storage
+#   namespace: services
+# spec:
+#   selector:
+#     app: supabase-storage
+#   ports:
+#     - name: http
+#       port: 5000
+# ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-meta
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-meta
+  template:
+    metadata:
+      labels:
+        app: supabase-meta
+    spec:
+      containers:
+        - name: pg-meta
+          image: supabase/pg-meta:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_URL
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-meta
+  namespace: services
+spec:
+  selector:
+    app: supabase-meta
+  ports:
+    - name: http
+      port: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-studio
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-studio
+  template:
+    metadata:
+      labels:
+        app: supabase-studio
+    spec:
+      containers:
+        - name: studio
+          image: supabase/studio:latest
+          env:
+            - name: SUPABASE_URL
+              value: https://supabase.neurocollab.in
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_ANON_KEY
+            - name: STUDIO_PG_META_URL
+              value: http://supabase-meta.services.svc.cluster.local:8080
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-studio
+  namespace: services
+spec:
+  selector:
+    app: supabase-studio
+  ports:
+    - name: http
+      port: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-kong
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-kong
+  template:
+    metadata:
+      labels:
+        app: supabase-kong
+    spec:
+      containers:
+        - name: kong
+          image: kong:3.6
+          env:
+            - name: KONG_DATABASE
+              value: "off"
+            - name: KONG_DECLARATIVE_CONFIG
+              value: /var/lib/kong/kong.yml
+            - name: KONG_PROXY_LISTEN
+              value: 0.0.0.0:8000
+            - name: KONG_ADMIN_LISTEN
+              value: 0.0.0.0:8001
+          ports:
+            - containerPort: 8000
+            - containerPort: 8001
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: kong-config
+              mountPath: /var/lib/kong
+      volumes:
+        - name: kong-config
+          configMap:
+            name: supabase-kong-config
+            items:
+              - key: kong.yml
+                path: kong.yml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-kong
+  namespace: services
+spec:
+  selector:
+    app: supabase-kong
+  ports:
+    - name: proxy
+      port: 8000
+    - name: admin
+      port: 8001

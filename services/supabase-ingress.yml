@@ -27,44 +27,7 @@ spec:
                 name: supabase-rest
                 port:
                   number: 3000
-          - path: /socket
-            pathType: Prefix
-            backend:
-              service:
-                name: supabase-realtime
-                port:
-                  number: 4000
-    - host: realtime-dev.supabase.neurocollab.in
-      http:
-        paths:
-          - path: /socket
-            pathType: Prefix
-            backend:
-              service:
-                name: supabase-realtime
-                port:
-                  number: 4000
-          - path: /realtime/v1
-            pathType: Prefix
-            backend:
-              service:
-                name: supabase-realtime
-                port:
-                  number: 4000
-          - path: /graphql/v1
-            pathType: Prefix
-            backend:
-              service:
-                name: supabase-rest
-                port:
-                  number: 3000
-          - path: /realtime/v1
-            pathType: Prefix
-            backend:
-              service:
-                name: supabase-realtime
-                port:
-                  number: 4000
+          # Realtime routes intentionally disabled for now
     - host: supabase-studio.neurocollab.in
       http:
         paths:

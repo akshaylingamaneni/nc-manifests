@@ -218,130 +218,128 @@ spec:
     - name: http
       port: 3000
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: supabase-realtime
-  namespace: services
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: supabase-realtime
-  template:
-    metadata:
-      labels:
-        app: supabase-realtime
-    spec:
-      initContainers:
-        - name: init-realtime-db
-          image: postgres:17
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_PASSWORD
-          command: ["sh","-lc"]
-          args:
-            - |
-              set -e
-              until pg_isready -h supabase-db.services.svc.cluster.local -U postgres -d postgres; do
-                echo "waiting for postgres..."; sleep 2; done;
-              CONN="postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres"
-              # Ensure Ecto schema_migrations has version as bigint and inserted_at timestamp
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN
-                IF NOT EXISTS (
-                  SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='schema_migrations'
-                ) THEN
-                  EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
-                ELSE
-                  BEGIN
-                    EXECUTE 'ALTER TABLE public.schema_migrations ALTER COLUMN version TYPE bigint USING version::bigint';
-                  EXCEPTION WHEN undefined_column THEN
-                    -- version column missing; recreate table to known-good shape
-                    EXECUTE 'DROP TABLE public.schema_migrations';
-                    EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
-                  WHEN others THEN
-                    -- if coercion fails for any reason, recreate table (safe for fresh DB)
-                    EXECUTE 'DROP TABLE public.schema_migrations';
-                    EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
-                  END;
-                  IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='schema_migrations' AND column_name='inserted_at'
-                  ) THEN
-                    EXECUTE 'ALTER TABLE public.schema_migrations ADD COLUMN inserted_at timestamp without time zone DEFAULT now()';
-                  END IF;
-                END IF;
-              END $$;"
-      containers:
-        - name: realtime
-          image: supabase/realtime:v2.57.2
-          env:
-            - name: APP_NAME
-              value: supabase-realtime
-            - name: FLY_APP_NAME
-              value: supabase-realtime
-            - name: FLY_ALLOC_ID
-              value: k8s
-            - name: DB_HOST
-              value: supabase-db
-            - name: DB_NAME
-              value: postgres
-            - name: DB_USER
-              value: postgres
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_PASSWORD
-            - name: DB_ENC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: REALTIME_DB_ENC_KEY
-            - name: PORT
-              value: "4000"
-            - name: RLIMIT_NOFILE
-              value: "65536"
-            - name: ERL_AFLAGS
-              value: "-proto_dist inet_tcp"
-            - name: API_JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_JWT_SECRET
-            - name: SECRET_KEY_BASE
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: REALTIME_SECRET_KEY_BASE
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_JWT_SECRET
-          ports:
-            - containerPort: 4000
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "250m"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: supabase-realtime
-  namespace: services
-spec:
-  selector:
-    app: supabase-realtime
-  ports:
-    - name: http
-      port: 4000
+## Supabase Realtime (disabled for now)
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: supabase-realtime
+#   namespace: services
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: supabase-realtime
+#   template:
+#     metadata:
+#       labels:
+#         app: supabase-realtime
+#     spec:
+#       initContainers:
+#         - name: init-realtime-db
+#           image: postgres:17
+#           env:
+#             - name: PGPASSWORD
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_DB_PASSWORD
+#           command: ["sh","-lc"]
+#           args:
+#             - |
+#               set -e
+#               until pg_isready -h supabase-db.services.svc.cluster.local -U postgres -d postgres; do
+#                 echo "waiting for postgres..."; sleep 2; done;
+#               CONN="postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres"
+#               psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN
+#                 IF NOT EXISTS (
+#                   SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='schema_migrations'
+#                 ) THEN
+#                   EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
+#                 ELSE
+#                   BEGIN
+#                     EXECUTE 'ALTER TABLE public.schema_migrations ALTER COLUMN version TYPE bigint USING version::bigint';
+#                   EXCEPTION WHEN undefined_column THEN
+#                     EXECUTE 'DROP TABLE public.schema_migrations';
+#                     EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
+#                   WHEN others THEN
+#                     EXECUTE 'DROP TABLE public.schema_migrations';
+#                     EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
+#                   END;
+#                   IF NOT EXISTS (
+#                     SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='schema_migrations' AND column_name='inserted_at'
+#                   ) THEN
+#                     EXECUTE 'ALTER TABLE public.schema_migrations ADD COLUMN inserted_at timestamp without time zone DEFAULT now()';
+#                   END IF;
+#                 END IF;
+#               END $$;"
+#       containers:
+#         - name: realtime
+#           image: supabase/realtime:v2.57.2
+#           env:
+#             - name: APP_NAME
+#               value: supabase-realtime
+#             - name: FLY_APP_NAME
+#               value: supabase-realtime
+#             - name: FLY_ALLOC_ID
+#               value: k8s
+#             - name: DB_HOST
+#               value: supabase-db
+#             - name: DB_NAME
+#               value: postgres
+#             - name: DB_USER
+#               value: postgres
+#             - name: DB_PASSWORD
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_DB_PASSWORD
+#             - name: DB_ENC_KEY
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: REALTIME_DB_ENC_KEY
+#             - name: PORT
+#               value: "4000"
+#             - name: RLIMIT_NOFILE
+#               value: "65536"
+#             - name: ERL_AFLAGS
+#               value: "-proto_dist inet_tcp"
+#             - name: API_JWT_SECRET
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_JWT_SECRET
+#             - name: SECRET_KEY_BASE
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: REALTIME_SECRET_KEY_BASE
+#             - name: JWT_SECRET
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: supabase-secrets
+#                   key: SUPABASE_JWT_SECRET
+#           ports:
+#             - containerPort: 4000
+#           resources:
+#             requests:
+#               memory: "128Mi"
+#               cpu: "100m"
+#             limits:
+#               memory: "256Mi"
+#               cpu: "250m"
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: supabase-realtime
+#   namespace: services
+# spec:
+#   selector:
+#     app: supabase-realtime
+#   ports:
+#     - name: http
+#       port: 4000
 ---
 ##
 ## Supabase Storage (disabled) — commented out to focus elsewhere.

@@ -25,7 +25,6 @@ Required secrets (Infisical → project `uio-bd-ns`, env `prod`, path `/supabase
 - `SUPABASE_ANON_KEY`                JWT signed with `SUPABASE_JWT_SECRET` and claim `role=anon`
 - `SUPABASE_SERVICE_ROLE_KEY`        JWT signed with `SUPABASE_JWT_SECRET` and claim `role=service_role`
 - `REALTIME_SECRET_KEY_BASE`         Random 64+ char string (Phoenix secret)
-- `REALTIME_DB_ENC_KEY`              Random 16+ char string (Realtime v2 DB_ENC_KEY)
 // Optional (only if you re-enable Storage)
 - `S3_ACCESS_KEY_ID`                 SeaweedFS S3 access key
 - `S3_SECRET_ACCESS_KEY`             SeaweedFS S3 secret key
@@ -70,8 +69,6 @@ Notes
 - Storage is disabled for now. To enable later, uncomment the `supabase-storage` Deployment/Service in `services/supabase.yml` and the `/storage/v1` Kong route in the ConfigMap.
 - GoTrue is set to `GOTRUE_MAILER_AUTOCONFIRM=true` for signups without SMTP. Set to `false` and supply SMTP envs when ready.
 - Kong is declarative and routes `/auth/v1`, `/rest/v1`, `/realtime/v1`, `/storage/v1` under `supabase.neurocollab.in`.
-  - Realtime v2 uses tenant subdomains. This setup adds `realtime-dev.supabase.neurocollab.in` and a Job to create the `realtime-dev` tenant.
-  - Connect WebSocket to `wss://realtime-dev.supabase.neurocollab.in/socket` with a JWT signed by `SUPABASE_JWT_SECRET` including `exp` and `role`.
 
 Listing files in Studio / Storage UI
 - Files uploaded via Supabase Storage API appear in Studio because metadata is stored in Postgres.

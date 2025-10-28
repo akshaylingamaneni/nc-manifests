@@ -237,6 +237,12 @@ spec:
         - name: realtime
           image: supabase/realtime:v2.57.2
           env:
+            - name: APP_NAME
+              value: supabase-realtime
+            - name: FLY_APP_NAME
+              value: supabase-realtime
+            - name: FLY_ALLOC_ID
+              value: k8s
             - name: DB_HOST
               value: supabase-db
             - name: DB_NAME
@@ -252,6 +258,13 @@ spec:
               value: "4000"
             - name: RLIMIT_NOFILE
               value: "65536"
+            - name: ERL_AFLAGS
+              value: "-proto_dist inet_tcp"
+            - name: API_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_JWT_SECRET
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:

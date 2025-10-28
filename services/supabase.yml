@@ -144,7 +144,7 @@ spec:
     spec:
       containers:
         - name: gotrue
-          image: supabase/gotrue:latest
+          image: supabase/gotrue:v2.181.0-rc.15
           env:
             - name: GOTRUE_API_HOST
               value: 0.0.0.0
@@ -214,7 +214,7 @@ spec:
     spec:
       containers:
         - name: postgrest
-          image: supabase/postgrest:latest
+          image: postgrest/postgrest:v12.2.3
           env:
             - name: PGRST_DB_URI
               valueFrom:
@@ -271,7 +271,7 @@ spec:
     spec:
       containers:
         - name: realtime
-          image: supabase/realtime:latest
+          image: supabase/realtime:v2.57.1
           env:
             - name: DB_HOST
               value: supabase-db
@@ -424,7 +424,7 @@ spec:
     spec:
       containers:
         - name: pg-meta
-          image: supabase/pg-meta:latest
+          image: supabase/postgres-meta:v0.93.1
           env:
             - name: DATABASE_URL
               valueFrom:

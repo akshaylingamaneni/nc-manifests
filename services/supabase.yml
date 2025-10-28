@@ -506,6 +506,11 @@ spec:
                 secretKeyRef:
                   name: supabase-secrets
                   key: SUPABASE_ANON_KEY
+            - name: SUPABASE_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_SERVICE_ROLE_KEY
             - name: STUDIO_PG_META_URL
               value: http://supabase-meta.services.svc.cluster.local:8080
             - name: SUPABASE_PUBLIC_URL

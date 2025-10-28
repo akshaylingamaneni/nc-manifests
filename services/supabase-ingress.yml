@@ -20,13 +20,34 @@ spec:
     - host: supabase.neurocollab.in
       http:
         paths:
-          - path: /
+          - path: /rest/v1
             pathType: Prefix
             backend:
               service:
-                name: supabase-kong
+                name: supabase-rest
                 port:
-                  number: 8000
+                  number: 3000
+          - path: /socket
+            pathType: Prefix
+            backend:
+              service:
+                name: supabase-realtime
+                port:
+                  number: 4000
+          - path: /graphql/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: supabase-rest
+                port:
+                  number: 3000
+          - path: /realtime/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: supabase-realtime
+                port:
+                  number: 4000
     - host: supabase-studio.neurocollab.in
       http:
         paths:

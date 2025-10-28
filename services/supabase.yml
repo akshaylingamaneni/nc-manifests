@@ -127,98 +127,39 @@ spec:
     - name: pg
       port: 5432
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: supabase-auth
-  namespace: services
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: supabase-auth
-  template:
-    metadata:
-      labels:
-        app: supabase-auth
-    spec:
-      initContainers:
-        - name: init-auth-db
-          image: postgres:17
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_PASSWORD
-          command: ["sh","-lc"]
-          args:
-            - |
-              set -e
-              until pg_isready -h supabase-db.services.svc.cluster.local -U postgres -d postgres; do
-                echo "waiting for postgres..."; sleep 2; done;
-              CONN="postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS auth;"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS graphql_public;"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS storage;"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = 'factor_type' AND n.nspname = 'auth') THEN EXECUTE 'CREATE TYPE auth.factor_type AS ENUM (''totp'',''webauthn'')'; END IF; END $$;"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END $$;"
-      containers:
-        - name: gotrue
-          image: supabase/gotrue:v2.181.0-rc.15
-          env:
-            - name: GOTRUE_API_HOST
-              value: 0.0.0.0
-            - name: GOTRUE_API_PORT
-              value: "9999"
-            # Domain where users will be redirected after auth flows
-            - name: GOTRUE_SITE_URL
-              value: https://supabase.neurocollab.in
-            # External URL for the auth API (Kong route)
-            - name: API_EXTERNAL_URL
-              value: https://supabase.neurocollab.in/auth/v1
-            - name: GOTRUE_DB_DRIVER
-              value: postgres
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_URL
-            - name: GOTRUE_JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_JWT_SECRET
-            - name: GOTRUE_JWT_DEFAULT_GROUP_NAME
-              value: authenticated
-            - name: GOTRUE_DISABLE_SIGNUP
-              value: "false"
-            # Autoconfirm disables email confirmations. Set to "false" when SMTP is configured.
-            - name: GOTRUE_MAILER_AUTOCONFIRM
-              value: "true"
-          ports:
-            - containerPort: 9999
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "250m"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: supabase-auth
-  namespace: services
-spec:
-  selector:
-    app: supabase-auth
-  ports:
-    - name: http
-      port: 9999
+## Supabase Auth (disabled)
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: supabase-auth
+#   namespace: services
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: supabase-auth
+#   template:
+#     metadata:
+#       labels:
+#         app: supabase-auth
+#     spec:
+#       containers:
+#         - name: gotrue
+#           image: supabase/gotrue:v2.181.0-rc.15
+#           ports:
+#             - containerPort: 9999
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: supabase-auth
+#   namespace: services
+# spec:
+#   selector:
+#     app: supabase-auth
+#   ports:
+#     - name: http
+#       port: 9999
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -294,7 +235,7 @@ spec:
     spec:
       containers:
         - name: realtime
-          image: supabase/realtime:v2.57.1
+          image: supabase/realtime:v2.57.2
           env:
             - name: DB_HOST
               value: supabase-db
@@ -528,64 +469,58 @@ spec:
     - name: http
       port: 3000
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: supabase-kong
-  namespace: services
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: supabase-kong
-  template:
-    metadata:
-      labels:
-        app: supabase-kong
-    spec:
-      containers:
-        - name: kong
-          image: kong:3.6
-          env:
-            - name: KONG_DATABASE
-              value: "off"
-            - name: KONG_DECLARATIVE_CONFIG
-              value: /var/lib/kong/kong.yml
-            - name: KONG_PROXY_LISTEN
-              value: 0.0.0.0:8000
-            - name: KONG_ADMIN_LISTEN
-              value: 0.0.0.0:8001
-          ports:
-            - containerPort: 8000
-            - containerPort: 8001
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "200m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
-          volumeMounts:
-            - name: kong-config
-              mountPath: /var/lib/kong
-      volumes:
-        - name: kong-config
-          configMap:
-            name: supabase-kong-config
-            items:
-              - key: kong.yml
-                path: kong.yml
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: supabase-kong
-  namespace: services
-spec:
-  selector:
-    app: supabase-kong
-  ports:
-    - name: proxy
-      port: 8000
-    - name: admin
-      port: 8001
+## Kong (disabled) — using Ingress to route directly to services.
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: supabase-kong
+#   namespace: services
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: supabase-kong
+#   template:
+#     metadata:
+#       labels:
+#         app: supabase-kong
+#     spec:
+#       containers:
+#         - name: kong
+#           image: kong:3.6
+#           env:
+#             - name: KONG_DATABASE
+#               value: "off"
+#             - name: KONG_DECLARATIVE_CONFIG
+#               value: /var/lib/kong/kong.yml
+#             - name: KONG_PROXY_LISTEN
+#               value: 0.0.0.0:8000
+#             - name: KONG_ADMIN_LISTEN
+#               value: 0.0.0.0:8001
+#           ports:
+#             - containerPort: 8000
+#             - containerPort: 8001
+#           volumeMounts:
+#             - name: kong-config
+#               mountPath: /var/lib/kong
+#       volumes:
+#         - name: kong-config
+#           configMap:
+#             name: supabase-kong-config
+#             items:
+#               - key: kong.yml
+#                 path: kong.yml
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: supabase-kong
+#   namespace: services
+# spec:
+#   selector:
+#     app: supabase-kong
+#   ports:
+#     - name: proxy
+#       port: 8000
+#     - name: admin
+#       port: 8001

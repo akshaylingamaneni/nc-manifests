@@ -154,37 +154,17 @@ spec:
           command: ["sh","-lc"]
           args:
             - |
+              set -e
               until pg_isready -h supabase-db.services.svc.cluster.local -U postgres -d postgres; do
                 echo "waiting for postgres..."; sleep 2; done;
-              psql "postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres" -v ON_ERROR_STOP=1 <<'SQL'
-              CREATE SCHEMA IF NOT EXISTS auth;
-              CREATE SCHEMA IF NOT EXISTS graphql_public;
-              CREATE SCHEMA IF NOT EXISTS storage;
-              CREATE EXTENSION IF NOT EXISTS pgcrypto;
-              CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-              -- Ensure enum type used by later GoTrue migrations exists in the auth schema
-              DO $$
-              BEGIN
-                IF NOT EXISTS (
-                  SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-                  WHERE t.typname = 'factor_type' AND n.nspname = 'auth'
-                ) THEN
-                  EXECUTE 'CREATE TYPE auth.factor_type AS ENUM (''totp'',''webauthn'')';
-                END IF;
-              END$$;
-              DO $$
-              BEGIN
-                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
-                  CREATE ROLE anon NOLOGIN;
-                END IF;
-                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
-                  CREATE ROLE authenticated NOLOGIN;
-                END IF;
-                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
-                  CREATE ROLE service_role NOLOGIN;
-                END IF;
-              END$$;
-              SQL
+              CONN="postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS auth;"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS graphql_public;"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS storage;"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = 'factor_type' AND n.nspname = 'auth') THEN EXECUTE 'CREATE TYPE auth.factor_type AS ENUM (''totp'',''webauthn'')'; END IF; END $$;"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END $$;"
       containers:
         - name: gotrue
           image: supabase/gotrue:v2.181.0-rc.15

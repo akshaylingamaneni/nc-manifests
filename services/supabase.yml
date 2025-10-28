@@ -449,19 +449,6 @@ spec:
         - name: pg-meta
           image: supabase/postgres-meta:v0.93.1
           env:
-            - name: PG_META_DB_HOST
-              value: supabase-db.services.svc.cluster.local
-            - name: PG_META_DB_PORT
-              value: "5432"
-            - name: PG_META_DB_NAME
-              value: postgres
-            - name: PG_META_DB_USER
-              value: postgres
-            - name: PG_META_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_PASSWORD
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

@@ -497,6 +497,10 @@ spec:
           env:
             - name: SUPABASE_URL
               value: https://supabase-studio.neurocollab.in
+            - name: STUDIO_DEFAULT_ORGANIZATION
+              value: default
+            - name: STUDIO_DEFAULT_PROJECT
+              value: default
             - name: SUPABASE_ANON_KEY
               valueFrom:
                 secretKeyRef:

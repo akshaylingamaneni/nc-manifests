@@ -286,6 +286,8 @@ spec:
                   key: SUPABASE_DB_PASSWORD
             - name: PORT
               value: "4000"
+            - name: RLIMIT_NOFILE
+              value: "65536"
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:

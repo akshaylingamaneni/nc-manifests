@@ -162,6 +162,16 @@ spec:
               CREATE SCHEMA IF NOT EXISTS storage;
               CREATE EXTENSION IF NOT EXISTS pgcrypto;
               CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+              -- Ensure enum type used by later GoTrue migrations exists in the auth schema
+              DO $$
+              BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                  WHERE t.typname = 'factor_type' AND n.nspname = 'auth'
+                ) THEN
+                  EXECUTE 'CREATE TYPE auth.factor_type AS ENUM (''totp'',''webauthn'')';
+                END IF;
+              END$$;
               DO $$
               BEGIN
                 IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN

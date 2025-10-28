@@ -295,6 +295,11 @@ spec:
                 secretKeyRef:
                   name: supabase-secrets
                   key: SUPABASE_DB_PASSWORD
+            - name: DB_ENC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: REALTIME_DB_ENC_KEY
             - name: PORT
               value: "4000"
             - name: RLIMIT_NOFILE

@@ -34,6 +34,23 @@ spec:
                 name: supabase-realtime
                 port:
                   number: 4000
+    - host: realtime-dev.supabase.neurocollab.in
+      http:
+        paths:
+          - path: /socket
+            pathType: Prefix
+            backend:
+              service:
+                name: supabase-realtime
+                port:
+                  number: 4000
+          - path: /realtime/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: supabase-realtime
+                port:
+                  number: 4000
           - path: /graphql/v1
             pathType: Prefix
             backend:

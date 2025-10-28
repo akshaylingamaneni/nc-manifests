@@ -233,6 +233,25 @@ spec:
       labels:
         app: supabase-realtime
     spec:
+      initContainers:
+        - name: init-realtime-db
+          image: postgres:17
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_PASSWORD
+          command: ["sh","-lc"]
+          args:
+            - |
+              set -e
+              until pg_isready -h supabase-db.services.svc.cluster.local -U postgres -d postgres; do
+                echo "waiting for postgres..."; sleep 2; done;
+              CONN="postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres"
+              # Ensure Ecto's migration table exists in expected shape
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS schema_migrations (version bigint PRIMARY KEY);"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS inserted_at timestamp without time zone DEFAULT now();"
       containers:
         - name: realtime
           image: supabase/realtime:v2.57.2

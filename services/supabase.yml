@@ -249,11 +249,31 @@ spec:
               until pg_isready -h supabase-db.services.svc.cluster.local -U postgres -d postgres; do
                 echo "waiting for postgres..."; sleep 2; done;
               CONN="postgresql://postgres:${PGPASSWORD}@supabase-db.services.svc.cluster.local:5432/postgres"
-              # Ensure Ecto's migration table exists in expected shape
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS schema_migrations (version bigint PRIMARY KEY);"
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS inserted_at timestamp without time zone DEFAULT now();"
-              # If an older schema_migrations exists with version as text/varchar, coerce to bigint
-              psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='schema_migrations' AND column_name='version' AND data_type <> 'bigint') THEN EXECUTE 'ALTER TABLE public.schema_migrations ALTER COLUMN version TYPE bigint USING version::bigint'; END IF; END $$;"
+              # Ensure Ecto schema_migrations has version as bigint and inserted_at timestamp
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='schema_migrations'
+                ) THEN
+                  EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
+                ELSE
+                  BEGIN
+                    EXECUTE 'ALTER TABLE public.schema_migrations ALTER COLUMN version TYPE bigint USING version::bigint';
+                  EXCEPTION WHEN undefined_column THEN
+                    -- version column missing; recreate table to known-good shape
+                    EXECUTE 'DROP TABLE public.schema_migrations';
+                    EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
+                  WHEN others THEN
+                    -- if coercion fails for any reason, recreate table (safe for fresh DB)
+                    EXECUTE 'DROP TABLE public.schema_migrations';
+                    EXECUTE 'CREATE TABLE public.schema_migrations (version bigint PRIMARY KEY, inserted_at timestamp without time zone DEFAULT now())';
+                  END;
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='schema_migrations' AND column_name='inserted_at'
+                  ) THEN
+                    EXECUTE 'ALTER TABLE public.schema_migrations ADD COLUMN inserted_at timestamp without time zone DEFAULT now()';
+                  END IF;
+                END IF;
+              END $$;"
       containers:
         - name: realtime
           image: supabase/realtime:v2.57.2

@@ -102,13 +102,17 @@ spec:
           readinessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U postgres -d postgres -h 127.0.0.1"]
-            initialDelaySeconds: 20
-            periodSeconds: 10
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6 
           livenessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U postgres -d postgres -h 127.0.0.1"]
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6 
           volumeMounts:
             - name: supabase-db-data
               mountPath: /var/lib/postgresql/data

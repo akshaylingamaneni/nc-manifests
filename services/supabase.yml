@@ -167,6 +167,8 @@ spec:
               value: "0.0.0.0"
             - name: GOTRUE_API_PORT
               value: "9999"
+            - name: API_EXTERNAL_URL
+              value: https://supabase.neurocollab.in
             - name: GOTRUE_DB_DRIVER
               value: postgres
             - name: GOTRUE_DB_DATABASE_URL

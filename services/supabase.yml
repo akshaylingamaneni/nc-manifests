@@ -25,9 +25,15 @@ metadata:
   name: supabase-kong-config
   namespace: services
 data:
-  # Declarative Kong config to route Supabase subpaths to component services
   kong.yml: |-
     _format_version: "3.0"
+    
+    consumers:
+    - username: $(DASHBOARD_USERNAME)
+      basicauth_credentials:
+      - username: $(DASHBOARD_USERNAME)
+        password: $(DASHBOARD_PASSWORD)
+    
     services:
     - name: auth
       url: http://supabase-auth.services.svc.cluster.local:9999
@@ -36,6 +42,7 @@ data:
         strip_path: false
         paths:
         - /auth/v1
+    
     - name: rest
       url: http://supabase-rest.services.svc.cluster.local:3000
       routes:
@@ -43,6 +50,19 @@ data:
         strip_path: false
         paths:
         - /rest/v1
+    
+    - name: studio
+      url: http://supabase-studio.services.svc.cluster.local:3000
+      routes:
+      - name: studio
+        strip_path: false
+        paths:
+        - /
+        plugins:
+        - name: basic-auth
+          config:
+            hide_credentials: true
+    
     - name: realtime
       url: http://supabase-realtime.services.svc.cluster.local:4000
       routes:
@@ -50,15 +70,6 @@ data:
         strip_path: false
         paths:
         - /realtime/v1
-    # Storage disabled for now
-    # - name: storage
-    #   url: http://supabase-storage.services.svc.cluster.local:5000
-    #   routes:
-    #   - name: storage
-    #     strip_path: false
-    #     paths:
-    #     - /storage/v1
-    # Add edge functions routing later if/when edge runtime is deployed
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -133,39 +144,94 @@ spec:
     - name: pg
       port: 5432
 ---
-## Supabase Auth (disabled)
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: supabase-auth
-#   namespace: services
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: supabase-auth
-#   template:
-#     metadata:
-#       labels:
-#         app: supabase-auth
-#     spec:
-#       containers:
-#         - name: gotrue
-#           image: supabase/gotrue:v2.181.0-rc.15
-#           ports:
-#             - containerPort: 9999
-# ---
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: supabase-auth
-#   namespace: services
-# spec:
-#   selector:
-#     app: supabase-auth
-#   ports:
-#     - name: http
-#       port: 9999
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-auth
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-auth
+  template:
+    metadata:
+      labels:
+        app: supabase-auth
+    spec:
+      containers:
+        - name: gotrue
+          image: supabase/gotrue:v2.181.0-rc.15
+          env:
+            - name: GOTRUE_API_HOST
+              value: "0.0.0.0"
+            - name: GOTRUE_API_PORT
+              value: "9999"
+            - name: GOTRUE_DB_DRIVER
+              value: postgres
+            - name: GOTRUE_DB_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_URL
+            - name: GOTRUE_SITE_URL
+              value: https://supabase.neurocollab.in
+            - name: GOTRUE_URI_ALLOW_LIST
+              value: "*"
+            - name: GOTRUE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_JWT_SECRET
+            - name: GOTRUE_JWT_EXP
+              value: "3600"
+            - name: GOTRUE_JWT_DEFAULT_GROUP_NAME
+              value: authenticated
+            - name: GOTRUE_DISABLE_SIGNUP
+              value: "false"
+            - name: GOTRUE_EXTERNAL_EMAIL_ENABLED
+              value: "true"
+            - name: GOTRUE_MAILER_AUTOCONFIRM
+              value: "false"
+            - name: GOTRUE_SMTP_HOST
+              value: ""
+            - name: GOTRUE_SMTP_PORT
+              value: "587"
+            - name: GOTRUE_SMTP_USER
+              value: ""
+            - name: GOTRUE_SMTP_PASS
+              value: ""
+            - name: GOTRUE_SMTP_ADMIN_EMAIL
+              value: "admin@neurocollab.in"
+            - name: GOTRUE_MAILER_URLPATHS_CONFIRMATION
+              value: "/auth/v1/verify"
+            - name: GOTRUE_MAILER_URLPATHS_INVITE
+              value: "/auth/v1/verify"
+            - name: GOTRUE_MAILER_URLPATHS_RECOVERY
+              value: "/auth/v1/verify"
+            - name: GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE
+              value: "/auth/v1/verify"
+          ports:
+            - containerPort: 9999
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-auth
+  namespace: services
+spec:
+  selector:
+    app: supabase-auth
+  ports:
+    - name: http
+      port: 9999
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -528,9 +594,9 @@ spec:
           image: supabase/studio:latest
           env:
             - name: SUPABASE_URL
-              value: https://supabase-studio.neurocollab.in
+              value: https://supabase.neurocollab.in
             - name: SUPABASE_PUBLIC_URL
-              value: https://supabase-studio.neurocollab.in
+              value: https://supabase.neurocollab.in
             - name: STUDIO_PG_META_URL
               value: http://supabase-meta.services.svc.cluster.local:8080
             - name: SUPABASE_ANON_KEY
@@ -570,61 +636,86 @@ spec:
     - name: http
       port: 3000
 ---
-## Kong (disabled) — using Ingress to route directly to services.
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: supabase-kong
-#   namespace: services
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: supabase-kong
-#   template:
-#     metadata:
-#       labels:
-#         app: supabase-kong
-#     spec:
-#       containers:
-#         - name: kong
-#           image: kong:3.6
-#           env:
-#             - name: KONG_DATABASE
-#               value: "off"
-#             - name: KONG_DECLARATIVE_CONFIG
-#               value: /var/lib/kong/kong.yml
-#             - name: KONG_PROXY_LISTEN
-#               value: 0.0.0.0:8000
-#             - name: KONG_ADMIN_LISTEN
-#               value: 0.0.0.0:8001
-#           ports:
-#             - containerPort: 8000
-#             - containerPort: 8001
-#           volumeMounts:
-#             - name: kong-config
-#               mountPath: /var/lib/kong
-#       volumes:
-#         - name: kong-config
-#           configMap:
-#             name: supabase-kong-config
-#             items:
-#               - key: kong.yml
-#                 path: kong.yml
-# ---
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: supabase-kong
-#   namespace: services
-# spec:
-#   selector:
-#     app: supabase-kong
-#   ports:
-#     - name: proxy
-#       port: 8000
-#     - name: admin
-#       port: 8001
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supabase-kong
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supabase-kong
+  template:
+    metadata:
+      labels:
+        app: supabase-kong
+    spec:
+      containers:
+        - name: kong
+          image: kong:3.6
+          env:
+            - name: KONG_DATABASE
+              value: "off"
+            - name: KONG_DECLARATIVE_CONFIG
+              value: /var/lib/kong/kong.yml
+            - name: KONG_PROXY_LISTEN
+              value: 0.0.0.0:8000
+            - name: KONG_ADMIN_LISTEN
+              value: 0.0.0.0:8001
+            - name: KONG_LOG_LEVEL
+              value: info
+            - name: KONG_PLUGINS
+              value: bundled
+            - name: DASHBOARD_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: DASHBOARD_USERNAME
+            - name: DASHBOARD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: DASHBOARD_PASSWORD
+          ports:
+            - containerPort: 8000
+              name: proxy
+            - containerPort: 8001
+              name: admin
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: kong-config
+              mountPath: /var/lib/kong
+      volumes:
+        - name: kong-config
+          configMap:
+            name: supabase-kong-config
+            items:
+              - key: kong.yml
+                path: kong.yml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supabase-kong
+  namespace: services
+spec:
+  selector:
+    app: supabase-kong
+  ports:
+    - name: proxy
+      port: 8000
+      targetPort: 8000
+    - name: admin
+      port: 8001
+      targetPort: 8001
+---
 apiVersion: v1
 kind: Service
 metadata:

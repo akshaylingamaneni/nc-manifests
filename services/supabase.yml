@@ -88,6 +88,8 @@ spec:
                 secretKeyRef:
                   name: supabase-secrets
                   key: SUPABASE_DB_PASSWORD
+            - name: POSTGRES_LISTEN_ADDRESSES
+              value: "*"
           ports:
             - containerPort: 5432
           resources:

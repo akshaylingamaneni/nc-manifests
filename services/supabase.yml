@@ -452,35 +452,48 @@ spec:
         app: supabase-meta
     spec:
       containers:
-        - name: pg-meta
-          image: supabase/postgres-meta:v0.93.1
-          env:
-            - name: PG_META_HOST
-              value: "0.0.0.0"
-            - name: PG_META_PORT
-              value: "8080"
-            - name: PG_META_DB_HOST
-              value: "supabase-db.services.svc.cluster.local"
-            - name: PG_META_DB_PORT
-              value: "5432"
-            - name: PG_META_DB_NAME
-              value: "postgres"
-            - name: PG_META_DB_USER
-              value: "postgres"
-            - name: PG_META_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_PASSWORD
-          ports:
-            - containerPort: 8080
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
-              memory: "128Mi"
-              cpu: "200m"
+      - name: pg-meta
+        image: supabase/postgres-meta:v0.93.1
+        # we give the container env vars that hold secrets,
+        # then we expand them inside bash -c below.
+        env:
+        - name: SUPABASE_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: supabase-secrets
+              key: SUPABASE_DB_PASSWORD
+        - name: SUPABASE_ANON_KEY
+          valueFrom:
+            secretKeyRef:
+              name: supabase-secrets
+              key: SUPABASE_ANON_KEY
+
+        # run postgres-meta exactly like Supabase's docker-compose does:
+        # https://github.com/supabase/supabase docker/docker-compose.yml
+        # (they pass --db-host/--db-pass/etc directly) :contentReference[oaicite:3]{index=3}
+        command: ["/bin/bash", "-c"]
+        args:
+        - >
+          /app/postgres-meta
+          --host 0.0.0.0
+          --port 8080
+          --db-host supabase-db.services.svc.cluster.local
+          --db-port 5432
+          --db-name postgres
+          --db-user postgres
+          --db-pass ${SUPABASE_DB_PASSWORD}
+          --jwt-secret ${SUPABASE_ANON_KEY}
+
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+
 ---
 apiVersion: v1
 kind: Service
@@ -515,18 +528,8 @@ spec:
           env:
             - name: SUPABASE_URL
               value: https://supabase-studio.neurocollab.in
-            - name: STUDIO_DEFAULT_PROJECT
-              value: default
-            - name: DEFAULT_CONNECTION_STRING
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_URL
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: supabase-secrets
-                  key: SUPABASE_DB_URL
+            - name: SUPABASE_PUBLIC_URL
+              value: https://supabase-studio.neurocollab.in
             - name: STUDIO_PG_META_URL
               value: http://supabase-meta.services.svc.cluster.local:8080
             - name: SUPABASE_ANON_KEY
@@ -539,8 +542,11 @@ spec:
                 secretKeyRef:
                   name: supabase-secrets
                   key: SUPABASE_SERVICE_ROLE_KEY
-            - name: SUPABASE_PUBLIC_URL
-              value: https://supabase-studio.neurocollab.in
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-secrets
+                  key: SUPABASE_DB_PASSWORD
           ports:
             - containerPort: 3000
           resources:

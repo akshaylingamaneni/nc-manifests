@@ -36,6 +36,8 @@ spec:
                 secretKeyRef:
                   name: postgres-secrets
                   key: POSTGRES_DB
+            - name: PGBOUNCER_POOL_MODE
+              value: "transaction"
           ports:
             - containerPort: 6432
               name: pgbouncer

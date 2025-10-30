@@ -29,9 +29,9 @@ data:
     [[proxies]]
     name = "postgres"
     type = "tcp"
-    # K8s ClusterIP service for Postgres
-    localIP = "postgres.services.svc.cluster.local"
-    localPort = 5432
+    # K8s ClusterIP service for PgBouncer (connection pooler)
+    localIP = "pgbouncer.services.svc.cluster.local"
+    localPort = 6432
     # Public port on the FRP server (change as needed, avoid conflicts)
     remotePort = 15432
 ---

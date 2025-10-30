@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+    spec:
+      initContainers:
+        - name: setup-config
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              POSTGRES_USER=${POSTGRES_USER:-postgres}
+              POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+              cp /config-template/pgbouncer.ini /etc/pgbouncer/pgbouncer.ini
+              echo "\"$POSTGRES_USER\" \"md5$(echo -n "$POSTGRES_PASSWORD$POSTGRES_USER" | md5sum | cut -d' ' -f1)\"" > /etc/pgbouncer/userlist.txt
+              cat /etc/pgbouncer/userlist.txt
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pgbouncer-config-template
+              mountPath: /config-template
+            - name: pgbouncer-config-volume
+              mountPath: /etc/pgbouncer
+      containers:
+        - name: pgbouncer
+          image: pgbouncer/pgbouncer:latest
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_PASSWORD
+          ports:
+            - containerPort: 6432
+              name: pgbouncer
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: pgbouncer-config-volume
+              mountPath: /etc/pgbouncer
+      volumes:
+        - name: pgbouncer-config-template
+          configMap:
+            name: pgbouncer-config
+        - name: pgbouncer-config-volume
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: services
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+    - name: pgbouncer
+      port: 6432
+      targetPort: 6432
+

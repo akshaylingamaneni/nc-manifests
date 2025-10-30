@@ -22,8 +22,11 @@ spec:
             - |
               POSTGRES_USER=${POSTGRES_USER:-postgres}
               POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+              chmod 777 /etc/pgbouncer
               cp /config-template/pgbouncer.ini /etc/pgbouncer/pgbouncer.ini
               echo "\"$POSTGRES_USER\" \"md5$(echo -n "$POSTGRES_PASSWORD$POSTGRES_USER" | md5sum | cut -d' ' -f1)\"" > /etc/pgbouncer/userlist.txt
+              chmod 644 /etc/pgbouncer/pgbouncer.ini
+              chmod 644 /etc/pgbouncer/userlist.txt
               cat /etc/pgbouncer/userlist.txt
           env:
             - name: POSTGRES_USER
@@ -79,6 +82,10 @@ spec:
                 secretKeyRef:
                   name: postgres-secrets
                   key: POSTGRES_DB
+            - name: PGBOUNCER_CONFIG_FILE
+              value: /etc/pgbouncer/pgbouncer.ini
+            - name: PGBOUNCER_USERLIST_FILE
+              value: /etc/pgbouncer/userlist.txt
           ports:
             - containerPort: 6432
               name: pgbouncer
@@ -107,7 +114,8 @@ spec:
           configMap:
             name: pgbouncer-config
         - name: pgbouncer-config-volume
-          emptyDir: {}
+          emptyDir:
+            medium: Memory
 ---
 apiVersion: v1
 kind: Service

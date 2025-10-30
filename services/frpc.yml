@@ -27,10 +27,10 @@ data:
     remotePort = 9000
 
     [[proxies]]
-    name = "supabase-postgres"
+    name = "postgres"
     type = "tcp"
     # K8s ClusterIP service for Postgres
-    localIP = "supabase-db.services.svc.cluster.local"
+    localIP = "postgres.services.svc.cluster.local"
     localPort = 5432
     # Public port on the FRP server (change as needed, avoid conflicts)
     remotePort = 15432

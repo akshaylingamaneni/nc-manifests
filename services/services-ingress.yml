@@ -26,3 +26,13 @@ spec:
                 name: uio-mcp-gateway
                 port:
                   number: 3002
+    - host: erp.neurocollab.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frappe-frontend
+                port:
+                  number: 8080

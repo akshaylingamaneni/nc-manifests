@@ -1,0 +1,487 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: frappe-configurator
+  namespace: services
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: frappe-configurator
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: configurator
+          image: frappe/erpnext:v15.90.0
+          command:
+            - bash
+            - -c
+            - |
+              ls -1 apps > sites/apps.txt;
+              bench set-config -g db_host ${DB_HOST};
+              bench set-config -gp db_port ${DB_PORT};
+              bench set-config -g redis_cache "redis://${REDIS_CACHE}";
+              bench set-config -g redis_queue "redis://${REDIS_QUEUE}";
+              bench set-config -g redis_socketio "redis://${REDIS_QUEUE}";
+              bench set-config -gp socketio_port ${SOCKETIO_PORT};
+          env:
+            - name: DB_HOST
+              value: mariadb.services.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: REDIS_CACHE
+              value: redis.services.svc.cluster.local:6379
+            - name: REDIS_QUEUE
+              value: redis.services.svc.cluster.local:6379
+            - name: SOCKETIO_PORT
+              value: "9000"
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frappe-backend
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frappe-backend
+  template:
+    metadata:
+      labels:
+        app: frappe-backend
+    spec:
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: backend
+          image: frappe/erpnext:v15.90.0
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DB_HOST
+              value: mariadb.services.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: REDIS_CACHE
+              value: redis.services.svc.cluster.local:6379
+            - name: REDIS_QUEUE
+              value: redis.services.svc.cluster.local:6379
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_DATABASE
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /api/method/ping
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/method/ping
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frappe-frontend
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frappe-frontend
+  template:
+    metadata:
+      labels:
+        app: frappe-frontend
+    spec:
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: frontend
+          image: frappe/erpnext:v15.90.0
+          command:
+            - nginx-entrypoint.sh
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: BACKEND
+              value: frappe-backend:8000
+            - name: SOCKETIO
+              value: frappe-websocket:9000
+            - name: FRAPPE_SITE_NAME_HEADER
+              value: "$host"
+            - name: UPSTREAM_REAL_IP_ADDRESS
+              value: "127.0.0.1"
+            - name: UPSTREAM_REAL_IP_HEADER
+              value: "X-Forwarded-For"
+            - name: UPSTREAM_REAL_IP_RECURSIVE
+              value: "off"
+            - name: PROXY_READ_TIMEOUT
+              value: "120"
+            - name: CLIENT_MAX_BODY_SIZE
+              value: "50m"
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frappe-websocket
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frappe-websocket
+  template:
+    metadata:
+      labels:
+        app: frappe-websocket
+    spec:
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: websocket
+          image: frappe/erpnext:v15.90.0
+          command:
+            - node
+            - /home/frappe/frappe-bench/apps/frappe/socketio.js
+          ports:
+            - containerPort: 9000
+              name: websocket
+          env:
+            - name: DB_HOST
+              value: mariadb.services.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: REDIS_CACHE
+              value: redis.services.svc.cluster.local:6379
+            - name: REDIS_QUEUE
+              value: redis.services.svc.cluster.local:6379
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_DATABASE
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frappe-queue-short
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frappe-queue-short
+  template:
+    metadata:
+      labels:
+        app: frappe-queue-short
+    spec:
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: queue-short
+          image: frappe/erpnext:v15.90.0
+          command:
+            - bench
+            - worker
+            - --queue
+            - short,default
+          env:
+            - name: DB_HOST
+              value: mariadb.services.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: REDIS_CACHE
+              value: redis.services.svc.cluster.local:6379
+            - name: REDIS_QUEUE
+              value: redis.services.svc.cluster.local:6379
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_DATABASE
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frappe-queue-long
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frappe-queue-long
+  template:
+    metadata:
+      labels:
+        app: frappe-queue-long
+    spec:
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: queue-long
+          image: frappe/erpnext:v15.90.0
+          command:
+            - bench
+            - worker
+            - --queue
+            - long,default,short
+          env:
+            - name: DB_HOST
+              value: mariadb.services.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: REDIS_CACHE
+              value: redis.services.svc.cluster.local:6379
+            - name: REDIS_QUEUE
+              value: redis.services.svc.cluster.local:6379
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_DATABASE
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frappe-scheduler
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frappe-scheduler
+  template:
+    metadata:
+      labels:
+        app: frappe-scheduler
+    spec:
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: scheduler
+          image: frappe/erpnext:v15.90.0
+          command:
+            - bench
+            - schedule
+          env:
+            - name: DB_HOST
+              value: mariadb.services.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: REDIS_CACHE
+              value: redis.services.svc.cluster.local:6379
+            - name: REDIS_QUEUE
+              value: redis.services.svc.cluster.local:6379
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_DATABASE
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frappe-backend
+  namespace: services
+spec:
+  selector:
+    app: frappe-backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frappe-frontend
+  namespace: services
+spec:
+  selector:
+    app: frappe-frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frappe-websocket
+  namespace: services
+spec:
+  selector:
+    app: frappe-websocket
+  ports:
+    - name: websocket
+      port: 9000
+      targetPort: 9000

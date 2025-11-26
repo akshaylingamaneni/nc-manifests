@@ -205,6 +205,23 @@ spec:
       labels:
         app: frappe-websocket
     spec:
+      initContainers:
+        - name: configure-redis-socketio
+          image: frappe/erpnext:v15.90.0
+          command:
+            - bash
+            - -c
+            - |
+              bench set-config -g redis_socketio "redis://${REDIS_QUEUE}";
+              bench set-config -gp socketio_port ${SOCKETIO_PORT};
+          env:
+            - name: REDIS_QUEUE
+              value: redis.services.svc.cluster.local:6379
+            - name: SOCKETIO_PORT
+              value: "9000"
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
       volumes:
         - name: sites
           persistentVolumeClaim:

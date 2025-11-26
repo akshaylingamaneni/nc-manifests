@@ -212,6 +212,8 @@ spec:
             - bash
             - -c
             - |
+              cd /home/frappe/frappe-bench;
+              ls -1 apps > sites/apps.txt;
               bench set-config -g redis_socketio "redis://${REDIS_QUEUE}";
               bench set-config -gp socketio_port ${SOCKETIO_PORT};
           env:
@@ -241,15 +243,15 @@ spec:
             - name: REDIS_URL
               value: redis://redis.services.svc.cluster.local:6379
             - name: REDIS_SOCKETIO
-              value: redis.services.svc.cluster.local:6379
+              value: redis://redis.services.svc.cluster.local:6379
             - name: DB_HOST
               value: mariadb.services.svc.cluster.local
             - name: DB_PORT
               value: "3306"
             - name: REDIS_CACHE
-              value: redis.services.svc.cluster.local:6379
+              value: redis://redis.services.svc.cluster.local:6379
             - name: REDIS_QUEUE
-              value: redis.services.svc.cluster.local:6379
+              value: redis://redis.services.svc.cluster.local:6379
             - name: DB_USER
               valueFrom:
                 secretKeyRef:

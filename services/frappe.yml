@@ -111,14 +111,12 @@ spec:
               memory: "2Gi"
               cpu: "1000m"
           livenessProbe:
-            httpGet:
-              path: /api/method/ping
+            tcpSocket:
               port: 8000
             initialDelaySeconds: 60
             periodSeconds: 30
           readinessProbe:
-            httpGet:
-              path: /api/method/ping
+            tcpSocket:
               port: 8000
             initialDelaySeconds: 60
             periodSeconds: 15

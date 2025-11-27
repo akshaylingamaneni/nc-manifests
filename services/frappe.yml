@@ -51,6 +51,73 @@ spec:
               memory: "512Mi"
               cpu: "500m"
 ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: frappe-site-creator
+  namespace: services
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: frappe-site-creator
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: sites
+          persistentVolumeClaim:
+            claimName: frappe-sites-pvc
+      containers:
+        - name: site-creator
+          image: frappe/erpnext:v15.90.0
+          command:
+            - bash
+            - -c
+            - |
+              cd /home/frappe/frappe-bench;
+              
+              if [ -d "sites/erp.neurocollab.in" ]; then
+                echo "Site erp.neurocollab.in already exists. Skipping creation.";
+                exit 0;
+              fi
+              
+              echo "Creating site erp.neurocollab.in...";
+              bench new-site erp.neurocollab.in \
+                --mariadb-root-password "${MYSQL_ROOT_PASSWORD}" \
+                --admin-password "${ADMIN_PASSWORD}" \
+                --db-host "${DB_HOST}" \
+                --db-port "${DB_PORT}" \
+                --install-app erpnext \
+                --no-mariadb-socket;
+              
+              echo "Site created successfully!";
+          env:
+            - name: DB_HOST
+              value: mariadb.services.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_ROOT_PASSWORD
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: frappe-secrets
+                  key: ADMIN_PASSWORD
+          volumeMounts:
+            - name: sites
+              mountPath: /home/frappe/frappe-bench/sites
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

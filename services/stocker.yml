@@ -21,7 +21,7 @@ spec:
             claimName: stocker-pvc
       containers:
         - name: stocker
-          image: ghcr.io/akshaylingamaneni/stocker/stocker-api:latest
+          image: ghcr.io/akshaylingamaneni/stocker/stocker-api:master
           ports:
             - containerPort: 8000
           envFrom:

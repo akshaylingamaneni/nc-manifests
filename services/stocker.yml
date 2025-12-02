@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stocker
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stocker
+  template:
+    metadata:
+      labels:
+        app: stocker
+    spec:
+      imagePullSecrets:
+        - name: ghcr-creds
+      volumes:
+        - name: stocker-data
+          persistentVolumeClaim:
+            claimName: stocker-pvc
+      containers:
+        - name: stocker
+          image: ghcr.io/akshaylingamaneni/stocker/stocker-api:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: stocker-secrets
+          env:
+            - name: STOCKER_HTTP_ADDR
+              value: ":8000"
+            - name: STOCKER_REDDIT_USER_AGENT
+              value: "stocker-app/0.1"
+            - name: STOCKER_FMP_RATE_LIMIT
+              value: "300m"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          volumeMounts:
+            - name: stocker-data
+              mountPath: /app/data
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stocker
+  namespace: services
+spec:
+  selector:
+    app: stocker
+  ports:
+    - port: 8000
+      targetPort: 8000
+

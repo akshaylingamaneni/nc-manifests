@@ -34,6 +34,14 @@ data:
     localPort = 6432
     # Public port on the FRP server (change as needed, avoid conflicts)
     remotePort = 15432
+
+    [[proxies]]
+    name = "redis"
+    type = "tcp"
+    localIP = "redis.services.svc.cluster.local"
+    localPort = 6379
+    # Public port on the FRP server (change as needed, avoid conflicts)
+    remotePort = 16379
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -21,7 +21,7 @@ spec:
             claimName: io-data-pvc
       containers:
         - name: io
-          image: ghcr.io/akshaylingamaneni/io:latest
+          image: ghcr.io/akshaylingamaneni/io:v2.0
           ports:
             - containerPort: 8080
           envFrom:

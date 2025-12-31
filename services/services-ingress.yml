@@ -46,7 +46,7 @@ spec:
                 name: stocker
                 port:
                   number: 8000
-    - host: io.neurocollab.in
+    - host: image-optimize.neurocollab.in
       http:
         paths:
           - path: /

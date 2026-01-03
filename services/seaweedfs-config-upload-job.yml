@@ -15,19 +15,24 @@ spec:
         - /bin/sh
         - -c
         - |
-          echo "Waiting for filer to be ready..."
-          until curl -s http://seaweedfs-filer:8888/ | grep -q "SeaweedFS"; do
-            echo "Waiting..."
-            sleep 3
+          # Upload config to each filer pod individually
+          for filer in seaweedfs-filer-0 seaweedfs-filer-1; do
+            echo "Waiting for $filer to be ready..."
+            until curl -s http://${filer}.seaweedfs-filer-peer.services:8888/ | grep -q "SeaweedFS"; do
+              echo "Waiting for $filer..."
+              sleep 3
+            done
+            
+            echo "Uploading S3 config to $filer..."
+            curl -X PUT http://${filer}.seaweedfs-filer-peer.services:8888/etc/s3/config \
+              -H "Content-Type: application/json" \
+              -d @/config/seaweedfs_s3_config.json \
+              -v
+            
+            echo "S3 config uploaded to $filer successfully!"
           done
           
-          echo "Uploading S3 config to filer..."
-          curl -X PUT http://seaweedfs-filer:8888/etc/s3/config \
-            -H "Content-Type: application/json" \
-            -d @/config/seaweedfs_s3_config.json \
-            -v
-          
-          echo "S3 config uploaded successfully!"
+          echo "All filers configured!"
         volumeMounts:
         - name: s3-config
           mountPath: /config

@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seaweedfs-s3-config-upload
+  namespace: services
+spec:
+  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: upload-config
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for filer to be ready..."
+          until curl -s http://seaweedfs-filer:8888/ | grep -q "SeaweedFS"; do
+            echo "Waiting..."
+            sleep 3
+          done
+          
+          echo "Uploading S3 config to filer..."
+          curl -X PUT http://seaweedfs-filer:8888/etc/s3/config \
+            -H "Content-Type: application/json" \
+            -d @/config/seaweedfs_s3_config.json \
+            -v
+          
+          echo "S3 config uploaded successfully!"
+        volumeMounts:
+        - name: s3-config
+          mountPath: /config
+          readOnly: true
+      volumes:
+      - name: s3-config
+        secret:
+          secretName: seaweedfs-secrets
+          items:
+          - key: seaweedfs_s3_config.json
+            path: seaweedfs_s3_config.json

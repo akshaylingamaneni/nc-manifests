@@ -13,6 +13,31 @@ spec:
       labels:
         app: pgbouncer
     spec:
+      initContainers:
+        - name: create-userlist
+          image: postgres:18
+          command:
+            - sh
+            - -c
+            - |
+              # Create MD5 hash: md5(password+username)
+              MD5_HASH=$(echo -n "${POSTGRES_PASSWORD}${POSTGRES_USER}" | md5sum | awk '{print $1}')
+              echo "\"${POSTGRES_USER}\" \"md5${MD5_HASH}\"" > /etc/pgbouncer/userlist.txt
+              cat /etc/pgbouncer/userlist.txt
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
       containers:
         - name: pgbouncer
           image: pgbouncer/pgbouncer:latest
@@ -39,9 +64,14 @@ spec:
             - name: PGBOUNCER_POOL_MODE
               value: "transaction"
             - name: PGBOUNCER_AUTH_TYPE
-              value: "scram-sha-256"
+              value: "md5"
+            - name: PGBOUNCER_AUTH_FILE
+              value: "/etc/pgbouncer/userlist.txt"
             - name: PGBOUNCER_IGNORE_STARTUP_PARAMETERS
               value: "extra_float_digits"
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
           ports:
             - containerPort: 6432
               name: pgbouncer
@@ -62,6 +92,9 @@ spec:
               port: 6432
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: pgbouncer-config
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

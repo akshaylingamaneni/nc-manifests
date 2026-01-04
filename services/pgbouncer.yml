@@ -13,6 +13,30 @@ spec:
       labels:
         app: pgbouncer
     spec:
+      initContainers:
+        - name: setup-auth
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              # Create userlist.txt with the postgres user
+              echo "\"${POSTGRES_USER}\" \"${POSTGRES_PASSWORD}\"" > /etc/pgbouncer/userlist.txt
+              cat /etc/pgbouncer/userlist.txt
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
       containers:
         - name: pgbouncer
           image: pgbouncer/pgbouncer:latest
@@ -38,6 +62,13 @@ spec:
                   key: POSTGRES_DB
             - name: PGBOUNCER_POOL_MODE
               value: "transaction"
+            - name: PGBOUNCER_AUTH_TYPE
+              value: "scram-sha-256"
+            - name: PGBOUNCER_AUTH_FILE
+              value: "/etc/pgbouncer/userlist.txt"
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
           ports:
             - containerPort: 6432
               name: pgbouncer
@@ -58,6 +89,9 @@ spec:
               port: 6432
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: pgbouncer-config
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

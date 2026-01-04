@@ -15,13 +15,22 @@ spec:
     spec:
       initContainers:
         - name: setup-auth
-          image: busybox:latest
+          image: postgres:18
           command:
             - sh
             - -c
             - |
-              # Create userlist.txt with the postgres user
-              echo "\"${POSTGRES_USER}\" \"${POSTGRES_PASSWORD}\"" > /etc/pgbouncer/userlist.txt
+              # Wait for postgres to be ready
+              until pg_isready -h postgres.services.svc.cluster.local -p 5432 -U ${POSTGRES_USER}; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              
+              # Get the SCRAM hash from PostgreSQL
+              SCRAM_HASH=$(PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.services.svc.cluster.local -p 5432 -U ${POSTGRES_USER} -d ${POSTGRES_DB} -t -c "SELECT rolpassword FROM pg_authid WHERE rolname='${POSTGRES_USER}';")
+              
+              # Create userlist.txt with SCRAM hash
+              echo "\"${POSTGRES_USER}\" \"${SCRAM_HASH}\"" > /etc/pgbouncer/userlist.txt
               cat /etc/pgbouncer/userlist.txt
           env:
             - name: POSTGRES_USER
@@ -34,6 +43,11 @@ spec:
                 secretKeyRef:
                   name: postgres-secrets
                   key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_DB
           volumeMounts:
             - name: pgbouncer-config
               mountPath: /etc/pgbouncer

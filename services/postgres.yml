@@ -32,6 +32,19 @@ spec:
                 secretKeyRef:
                   name: postgres-secrets
                   key: POSTGRES_DB
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    # Wait for pg_hba.conf to be created
+                    sleep 5
+                    # Change scram-sha-256 to md5 for compatibility with PgBouncer
+                    if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then
+                      sed -i 's/scram-sha-256/md5/g' /var/lib/postgresql/data/pg_hba.conf
+                    fi
           ports:
             - containerPort: 5432
           resources:

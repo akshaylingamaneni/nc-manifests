@@ -13,9 +13,50 @@ spec:
       labels:
         app: pgbouncer
     spec:
-      containers:
-        - name: pgbouncer
-          image: pgbouncer/pgbouncer:latest
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:18
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres.services.svc.cluster.local -p 5432 -U ${POSTGRES_USER}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_PASSWORD
+        - name: generate-config
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              # Escape password for pgbouncer.ini (quote it properly)
+              ESCAPED_PASSWORD=$(echo "${DATABASES_PASSWORD}" | sed 's/"/\\"/g')
+              cat > /etc/pgbouncer/pgbouncer.ini <<EOF
+              [databases]
+              * = host=${DATABASES_HOST} port=${DATABASES_PORT} user=${DATABASES_USER} password="${ESCAPED_PASSWORD}" dbname=${DATABASES_DBNAME}
+              
+              [pgbouncer]
+              listen_addr = 0.0.0.0
+              listen_port = 6432
+              auth_type = any
+              pool_mode = ${PGBOUNCER_POOL_MODE}
+              ignore_startup_parameters = extra_float_digits
+              admin_users = ${DATABASES_USER}
+              EOF
+              cat /etc/pgbouncer/pgbouncer.ini
           env:
             - name: DATABASES_HOST
               value: postgres.services.svc.cluster.local
@@ -38,6 +79,13 @@ spec:
                   key: POSTGRES_DB
             - name: PGBOUNCER_POOL_MODE
               value: "transaction"
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
+      containers:
+        - name: pgbouncer
+          image: pgbouncer/pgbouncer:latest
+          command: ["pgbouncer", "-u", "pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
           ports:
             - containerPort: 6432
               name: pgbouncer
@@ -58,6 +106,12 @@ spec:
               port: 6432
             initialDelaySeconds: 5
             periodSeconds: 5
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer
+      volumes:
+        - name: pgbouncer-config
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

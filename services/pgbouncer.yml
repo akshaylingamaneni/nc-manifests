@@ -13,44 +13,6 @@ spec:
       labels:
         app: pgbouncer
     spec:
-      initContainers:
-        - name: setup-auth
-          image: postgres:18
-          command:
-            - sh
-            - -c
-            - |
-              # Wait for postgres to be ready
-              until pg_isready -h postgres.services.svc.cluster.local -p 5432 -U ${POSTGRES_USER}; do
-                echo "Waiting for PostgreSQL..."
-                sleep 2
-              done
-              
-              # Get the SCRAM hash from PostgreSQL
-              SCRAM_HASH=$(PGPASSWORD="${POSTGRES_PASSWORD}" psql -h postgres.services.svc.cluster.local -p 5432 -U ${POSTGRES_USER} -d ${POSTGRES_DB} -t -c "SELECT rolpassword FROM pg_authid WHERE rolname='${POSTGRES_USER}';")
-              
-              # Create userlist.txt with SCRAM hash
-              echo "\"${POSTGRES_USER}\" \"${SCRAM_HASH}\"" > /etc/pgbouncer/userlist.txt
-              cat /etc/pgbouncer/userlist.txt
-          env:
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secrets
-                  key: POSTGRES_USER
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secrets
-                  key: POSTGRES_PASSWORD
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secrets
-                  key: POSTGRES_DB
-          volumeMounts:
-            - name: pgbouncer-config
-              mountPath: /etc/pgbouncer
       containers:
         - name: pgbouncer
           image: pgbouncer/pgbouncer:latest
@@ -78,11 +40,8 @@ spec:
               value: "transaction"
             - name: PGBOUNCER_AUTH_TYPE
               value: "scram-sha-256"
-            - name: PGBOUNCER_AUTH_FILE
-              value: "/etc/pgbouncer/userlist.txt"
-          volumeMounts:
-            - name: pgbouncer-config
-              mountPath: /etc/pgbouncer
+            - name: PGBOUNCER_IGNORE_STARTUP_PARAMETERS
+              value: "extra_float_digits"
           ports:
             - containerPort: 6432
               name: pgbouncer
@@ -103,9 +62,6 @@ spec:
               port: 6432
             initialDelaySeconds: 5
             periodSeconds: 5
-      volumes:
-        - name: pgbouncer-config
-          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convex-dashboard
+  namespace: services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: convex-dashboard
+  template:
+    metadata:
+      labels:
+        app: convex-dashboard
+    spec:
+      containers:
+        - name: convex-dashboard
+          image: ghcr.io/get-convex/convex-dashboard:latest
+          ports:
+            - containerPort: 6791
+          env:
+            - name: NEXT_PUBLIC_DEPLOYMENT_URL
+              value: "https://convex-api.neurocollab.in"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            tcpSocket: { port: 6791 }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 6791 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: convex-dashboard
+  namespace: services
+spec:
+  selector:
+    app: convex-dashboard
+  ports:
+    - name: dashboard
+      port: 6791
+      targetPort: 6791

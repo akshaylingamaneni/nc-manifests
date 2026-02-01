@@ -18,7 +18,7 @@ spec:
                   operator: In
                   values: [seaweedfs]
   master:
-    replicas: 3
+    replicas: 0
     volumePreallocate: true
     volumeSizeLimitMB: 29999
     defaultReplication: "000"
@@ -30,7 +30,7 @@ spec:
         cpu: 1
         memory: 1Gi
   volume:
-    replicas: 3
+    replicas: 0
     storageClassName: microk8s-hostpath
     requests:
       storage: 70Gi
@@ -46,7 +46,7 @@ spec:
         cpu: 4
         memory: 6Gi
   filer:
-    replicas: 2
+    replicas: 0
     maxMB: 512
     persistence:
       enabled: true
@@ -76,7 +76,7 @@ spec:
         memory: 4Gi
     iam: true
   iam:
-    replicas: 2
+    replicas: 0
     service:
       type: ClusterIP
     port: 8111

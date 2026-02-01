@@ -124,7 +124,7 @@ metadata:
   name: frappe-backend
   namespace: services
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: frappe-backend
@@ -194,7 +194,7 @@ metadata:
   name: frappe-frontend
   namespace: services
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: frappe-frontend
@@ -259,7 +259,7 @@ metadata:
   name: frappe-websocket
   namespace: services
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: frappe-websocket
@@ -362,7 +362,7 @@ metadata:
   name: frappe-queue-short
   namespace: services
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: frappe-queue-short
@@ -424,7 +424,7 @@ metadata:
   name: frappe-queue-long
   namespace: services
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: frappe-queue-long
@@ -486,7 +486,7 @@ metadata:
   name: frappe-scheduler
   namespace: services
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: frappe-scheduler

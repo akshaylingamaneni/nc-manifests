@@ -20,13 +20,6 @@ data:
     remotePort = 443
 
     [[proxies]]
-    name = "seaweedfs-s3-api"
-    type = "tcp"
-    localIP = "seaweedfs-filer.services.svc.cluster.local"
-    localPort = 8333
-    remotePort = 9000
-
-    [[proxies]]
     name = "postgres"
     type = "tcp"
     # K8s ClusterIP service for PgBouncer (connection pooler)
